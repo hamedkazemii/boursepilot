@@ -4,22 +4,26 @@ import os
 
 class FundRegistry:
 
+    FILE = "data/funds.json"
 
-    def __init__(self):
 
-        self.file = "data/fund_registry.json"
+    def load(self):
 
+        if not os.path.exists(self.FILE):
+            return []
+
+        with open(
+            self.FILE,
+            encoding="utf-8"
+        ) as f:
+
+            return json.load(f)
 
 
     def save(self, funds):
 
-        os.makedirs(
-            "data",
-            exist_ok=True
-        )
-
         with open(
-            self.file,
+            self.FILE,
             "w",
             encoding="utf-8"
         ) as f:
@@ -30,19 +34,3 @@ class FundRegistry:
                 ensure_ascii=False,
                 indent=4
             )
-
-
-
-    def load(self):
-
-        if not os.path.exists(self.file):
-
-            return []
-
-
-        with open(
-            self.file,
-            encoding="utf-8"
-        ) as f:
-
-            return json.load(f)

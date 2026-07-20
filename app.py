@@ -1,16 +1,42 @@
-from reports.report import MorningReport
+from core.real_market_scanner import RealMarketScanner
+from reports.recommendation_report import save_report
 
 
-def main():
 
-    report = MorningReport()
+print("="*60)
+print("BoursePilot Real Market Scan")
+print("="*60)
 
-    result = report.generate(
-        "دارونو"
+
+scanner=RealMarketScanner()
+
+
+results=scanner.scan()
+
+
+print()
+print("="*60)
+print("TOP RECOMMENDATIONS")
+print("="*60)
+
+
+for r in results[:20]:
+
+    print(
+        r["symbol"],
+        "|",
+        r["type"],
+        "|",
+        r["score"],
+        "|",
+        r["decision"]
     )
 
-    print(result)
+
+save_report(results)
 
 
-if __name__ == "__main__":
-    main()
+print()
+print("Saved:")
+print("reports/recommendations.json")
+print("reports/recommendations.txt")

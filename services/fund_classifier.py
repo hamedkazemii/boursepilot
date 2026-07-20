@@ -1,54 +1,41 @@
-class FundClassifier:
+def classify(text):
+
+    text = text.replace("‌"," ")
+
+    if (
+        "طلا" in text
+        or "پشتوانه طلا" in text
+        or "كالاي" in text
+    ):
+        return "طلا"
 
 
-    def classify(self, info):
-
-        sector = info.get(
-            "sector",
-            {}
-        ).get(
-            "lSecVal",
-            ""
-        )
+    if (
+        "اهرمي" in text
+        or "اهرم" in text
+    ):
+        return "اهرم"
 
 
-        desc = info.get(
-            "faraDesc",
-            ""
-        )
+    if (
+        "درآمد ثابت" in text
+        or "درآمدثابت" in text
+        or "ثابت" in text
+    ):
+        return "درآمد ثابت"
 
 
-        group = info.get(
-            "cgrValCotTitle",
-            ""
-        )
+    if (
+        "مختلط" in text
+    ):
+        return "مختلط"
 
 
-        text = (
-            sector +
-            desc +
-            group
-        )
-
-
-        if "صندوق" not in text and "ETF" not in text:
-
-            return "UNKNOWN"
-
-
-        if "اهرم" in text:
-
-            return "اهرمی"
-
-
-        if "طلا" in text:
-
-            return "طلا"
-
-
-        if "ثابت" in text:
-
-            return "درآمد ثابت"
-
-
+    if (
+        "سهام" in text
+        or "سهامي" in text
+    ):
         return "سهامی"
+
+
+    return "UNKNOWN"
