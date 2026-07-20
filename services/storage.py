@@ -1,33 +1,66 @@
 import json
-from pathlib import Path
+import os
 from datetime import datetime
 
 
-class HistoryStorage:
+class StorageService:
+
 
     def __init__(self):
-        self.file = Path("data/history/funds_history.json")
 
-    def save(self, data: dict):
-        history = self.load()
+        self.path = "data/history"
 
-        data["saved_at"] = datetime.now().isoformat()
+
+    def save(self, data):
+
+        os.makedirs(
+            self.path,
+            exist_ok=True
+        )
+
+
+        filename = (
+            datetime.now()
+            .strftime("%Y-%m-%d")
+            + ".json"
+        )
+
+
+        filepath = os.path.join(
+            self.path,
+            filename
+        )
+
+
+        history = []
+
+
+        if os.path.exists(filepath):
+
+            with open(
+                filepath,
+                "r",
+                encoding="utf-8"
+            ) as file:
+
+                history = json.load(file)
+
 
         history.append(data)
 
-        self.file.write_text(
-            json.dumps(
-                history,
-                ensure_ascii=False,
-                indent=2
-            ),
+
+        with open(
+            filepath,
+            "w",
             encoding="utf-8"
-        )
+        ) as file:
 
-    def load(self):
-        if not self.file.exists():
-            return []
+            json.dump(
+                history,
+                file,
+                ensure_ascii=False,
+                indent=4
+            )
 
-        return json.loads(
-            self.file.read_text(encoding="utf-8")
-        )
+
+        return filepath
