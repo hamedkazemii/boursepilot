@@ -1,0 +1,2533 @@
+
+
+==============================
+./tools/fund_validator.py
+==============================
+
+from services.fund_loader import FundLoader
+from services.tsetmc_client import TSETMCClient
+
+
+
+class FundValidator:
+
+
+    def __init__(self):
+
+        self.loader = FundLoader()
+
+        self.client = TSETMCClient()
+
+
+
+    def validate(self):
+
+
+        funds = self.loader.load()
+
+
+        valid = []
+
+
+        print()
+
+        print("="*60)
+
+        print(
+            "🔍 بررسی اعتبار صندوق‌ها"
+        )
+
+        print("="*60)
+
+
+
+        for fund in funds:
+
+
+            try:
+
+
+                price = self.client.closing_price(
+
+                    fund["ins_code"]
+
+                )
+
+
+                if price:
+
+
+                    print(
+
+                        "✅",
+
+                        fund["name"]
+
+                    )
+
+
+                    valid.append(
+                        fund
+                    )
+
+
+
+            except Exception as e:
+
+
+                print(
+
+                    "❌",
+
+                    fund["name"],
+
+                    "نامعتبر"
+
+                )
+
+
+
+        print()
+
+        print(
+            "صندوق معتبر:",
+            len(valid)
+        )
+
+
+        return valid
+
+
+
+if __name__ == "__main__":
+
+
+    validator = FundValidator()
+
+
+    validator.validate()
+
+
+
+==============================
+./tools/__init__.py
+==============================
+
+
+==============================
+./tools/endpoint_explorer.py
+==============================
+import json
+import requests
+
+BASE = "https://cdn.tsetmc.com/api"
+
+INS_CODE = "34074071043606558"
+
+ENDPOINTS = {
+    "InstrumentInfo":
+        f"{BASE}/Instrument/GetInstrumentInfo/{INS_CODE}",
+
+    "ClosingPrice":
+        f"{BASE}/ClosingPrice/GetClosingPriceInfo/{INS_CODE}",
+
+    "BestLimits":
+        f"{BASE}/BestLimits/{INS_CODE}",
+
+    "Trade":
+        f"{BASE}/Trade/GetTrade/{INS_CODE}",
+
+    "ClosingPriceHistory":
+        f"{BASE}/ClosingPrice/GetClosingPriceDailyList/{INS_CODE}/0",
+
+    "MarketWatch":
+        f"{BASE}/MarketWatch/GetMarketWatch",
+
+    "InstrumentSearch":
+        f"{BASE}/Instrument/GetInstrumentSearch/دارونو"
+}
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0"
+}
+
+print("=" * 80)
+print("BoursePilot Endpoint Explorer")
+print("=" * 80)
+
+for name, url in ENDPOINTS.items():
+
+    print()
+    print("=" * 80)
+    print(name)
+    print(url)
+
+    try:
+
+        r = requests.get(url, headers=HEADERS, timeout=15)
+
+        print("Status:", r.status_code)
+
+        if "application/json" in r.headers.get("content-type", ""):
+
+            obj = r.json()
+
+            print(json.dumps(obj, ensure_ascii=False, indent=2)[:2500])
+
+        else:
+
+            print(r.text[:800])
+
+    except Exception as ex:
+
+        print(ex)
+
+
+==============================
+./config.py
+==============================
+cat > config.py <<'EOF'
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
+class Settings:
+    TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+    TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
+
+
+settings = Settings()
+EOF
+
+
+==============================
+./core/scanner.py
+==============================
+
+from services.tsetmc_client import TSETMCClient
+from services.fund_loader import FundLoader
+
+from core.market_engine import MarketEngine
+from core.market_analyzer import MarketAnalyzer
+
+
+
+class MarketScanner:
+
+
+
+    def __init__(self):
+
+        self.client = TSETMCClient()
+
+        self.loader = FundLoader()
+
+        self.engine = MarketEngine()
+
+        self.analyzer = MarketAnalyzer()
+
+
+
+    def scan(self):
+
+
+        funds = self.loader.load()
+
+
+        results = []
+
+
+
+        print()
+
+        print(
+            "📡 شروع اسکن صندوق‌ها"
+        )
+
+        print(
+            "-" * 50
+        )
+
+
+
+        for fund in funds:
+
+
+            try:
+
+
+                print(
+                    "بررسی:",
+                    fund["name"]
+                )
+
+
+
+                book = self.client.orderbook(
+
+                    fund["ins_code"]
+
+                )
+
+
+                price = self.client.closing_price(
+
+                    fund["ins_code"]
+
+                )
+
+
+
+                market = self.engine.analyze(
+
+                    book,
+
+                    price
+
+                )
+
+
+
+                analysis = self.analyzer.analyze(
+
+                    market
+
+                )
+
+
+
+                results.append({
+
+                    "name":
+                    fund["name"],
+
+
+                    "type":
+                    fund["type"],
+
+
+                    "market":
+                    market,
+
+
+                    "analysis":
+                    analysis
+
+                })
+
+
+
+            except Exception as e:
+
+
+                print(
+
+                    "❌ خطا در",
+
+                    fund["name"],
+
+                    ":",
+
+                    e
+
+                )
+
+
+
+        return results
+
+
+
+==============================
+./core/scoring.py
+==============================
+from dataclasses import dataclass
+
+
+@dataclass
+class FundMetrics:
+    name: str
+    nav: int
+    daily_return: float
+    weekly_return: float
+    monthly_return: float
+
+
+class BPIScorer:
+
+    def calculate_performance_score(
+        self,
+        daily: float,
+        weekly: float,
+        monthly: float
+    ) -> float:
+
+        score = (
+            daily * 5
+            + weekly * 3
+            + monthly * 2
+        )
+
+        return min(max(score, 0), 100)
+
+
+    def calculate_nav_score(self, nav: int) -> float:
+        """
+        Temporary NAV scoring.
+        Later replaced by historical NAV analysis.
+        """
+
+        if nav > 120000:
+            return 90
+
+        if nav > 100000:
+            return 75
+
+        return 60
+
+
+    def calculate_risk_score(
+        self,
+        monthly_return: float
+    ) -> float:
+
+        if monthly_return > 10:
+            return 90
+
+        if monthly_return > 5:
+            return 80
+
+        return 65
+
+
+    def calculate(self, metrics: FundMetrics) -> int:
+
+        nav_score = self.calculate_nav_score(metrics.nav)
+
+        performance_score = self.calculate_performance_score(
+            metrics.daily_return,
+            metrics.weekly_return,
+            metrics.monthly_return
+        )
+
+        risk_score = self.calculate_risk_score(
+            metrics.monthly_return
+        )
+
+        final_score = (
+            nav_score * 0.35
+            + performance_score * 0.45
+            + risk_score * 0.20
+        )
+
+        return round(final_score)
+
+
+==============================
+./core/__init__.py
+==============================
+
+
+==============================
+./core/decision.py
+==============================
+from dataclasses import dataclass
+
+
+@dataclass
+class DecisionResult:
+    action: str
+    description: str
+    confidence: str
+
+
+class DecisionEngine:
+
+    def decide(self, bpi_score: int) -> DecisionResult:
+
+        if bpi_score >= 85:
+            return DecisionResult(
+                action="افزایش موقعیت",
+                description=(
+                    "امتیاز BPI در محدوده جذاب قرار دارد. "
+                    "ترکیب عملکرد، روند و ریسک صندوق مناسب ارزیابی شده است. "
+                    "افزایش سرمایه‌گذاری به صورت تدریجی قابل بررسی است."
+                ),
+                confidence="بالا"
+            )
+
+        elif bpi_score >= 70:
+            return DecisionResult(
+                action="نگهداری",
+                description=(
+                    "وضعیت صندوق متعادل ارزیابی می‌شود. "
+                    "در شرایط فعلی سیگنال قوی برای خرید بیشتر یا خروج وجود ندارد."
+                ),
+                confidence="متوسط"
+            )
+
+        elif bpi_score >= 50:
+            return DecisionResult(
+                action="کاهش تدریجی موقعیت / بررسی سیو سود",
+                description=(
+                    "جذابیت نسبی صندوق کاهش پیدا کرده است. "
+                    "اگر سرمایه‌گذار در سود است، شناسایی بخشی از سود می‌تواند بررسی شود. "
+                    "این تصمیم به معنی فروش کامل صندوق نیست."
+                ),
+                confidence="متوسط"
+            )
+
+        else:
+            return DecisionResult(
+                action="بررسی خروج",
+                description=(
+                    "امتیاز صندوق وارد محدوده ضعیف شده است. "
+                    "بررسی کاهش جدی موقعیت و عوامل بنیادی توصیه می‌شود."
+                ),
+                confidence="بالا"
+            )
+
+
+==============================
+./core/market_universe.py
+==============================
+
+import json
+import os
+
+
+class MarketUniverse:
+
+
+
+    def __init__(self):
+
+        self.file = (
+            "data/market_universe.json"
+        )
+
+
+
+    def save(
+        self,
+        data
+    ):
+
+
+        os.makedirs(
+            "data",
+            exist_ok=True
+        )
+
+
+        with open(
+            self.file,
+            "w",
+            encoding="utf-8"
+        ) as f:
+
+
+            json.dump(
+                data,
+                f,
+                ensure_ascii=False,
+                indent=4
+            )
+
+
+
+    def load(self):
+
+
+        if not os.path.exists(
+            self.file
+        ):
+
+            return []
+
+
+        with open(
+            self.file,
+            encoding="utf-8"
+        ) as f:
+
+
+            return json.load(f)
+
+
+
+
+==============================
+./core/market_loader.py
+==============================
+
+import json
+import os
+
+
+class MarketLoader:
+
+
+    def __init__(self):
+
+        self.file = "data/funds.json"
+
+
+
+    def load(self):
+
+        if not os.path.exists(self.file):
+
+            return []
+
+
+        with open(
+            self.file,
+            encoding="utf-8"
+        ) as f:
+
+            return json.load(f)
+
+
+
+    def save(self, funds):
+
+        with open(
+            self.file,
+            "w",
+            encoding="utf-8"
+        ) as f:
+
+            json.dump(
+                funds,
+                f,
+                ensure_ascii=False,
+                indent=4
+            )
+
+
+
+
+==============================
+./core/market_engine.py
+==============================
+class MarketEngine:
+
+    def analyze(self, orderbook, closing_price):
+
+        rows = orderbook["bestLimits"]
+
+        buy_volume = sum(x["qTitMeDem"] for x in rows)
+        sell_volume = sum(x["qTitMeOf"] for x in rows)
+
+        buy_orders = sum(x["zOrdMeDem"] for x in rows)
+        sell_orders = sum(x["zOrdMeOf"] for x in rows)
+
+        last_price = closing_price["closingPriceInfo"]["pClosing"]
+        yesterday = closing_price["closingPriceInfo"]["priceYesterday"]
+
+        change_percent = (
+            (last_price - yesterday)
+            / yesterday
+        ) * 100
+
+        imbalance = buy_volume - sell_volume
+
+        if sell_volume == 0:
+            pressure = 100
+        else:
+            pressure = round(
+                buy_volume / sell_volume,
+                2
+            )
+
+        return {
+
+            "buy_volume": buy_volume,
+
+            "sell_volume": sell_volume,
+
+            "buy_orders": buy_orders,
+
+            "sell_orders": sell_orders,
+
+            "change_percent": round(change_percent,2),
+
+            "pressure": pressure,
+
+            "imbalance": imbalance,
+
+            "queue_buy": sell_volume == 0,
+
+            "queue_sell": buy_volume == 0
+
+        }
+
+
+==============================
+./core/ranking.py
+==============================
+from dataclasses import dataclass
+
+
+@dataclass
+class FundRanking:
+    name: str
+    score: int
+    decision: str
+
+
+class RankingEngine:
+
+    def rank(self, funds):
+
+        return sorted(
+            funds,
+            key=lambda x: x.score,
+            reverse=True
+        )
+
+
+    def get_summary(self, ranked):
+
+        if not ranked:
+            return None
+
+        return {
+            "best": ranked[0],
+            "weakest": ranked[-1]
+        }
+
+
+==============================
+./core/market_analyzer.py
+==============================
+class MarketAnalyzer:
+
+    def analyze(self, market):
+
+        buy_volume = market["buy_volume"]
+        sell_volume = market["sell_volume"]
+
+        buy_orders = market["buy_orders"]
+        sell_orders = market["sell_orders"]
+
+        change = market["change_percent"]
+
+        queue_buy = market["queue_buy"]
+        queue_sell = market["queue_sell"]
+
+        report = {}
+
+        # -----------------------------
+        # قدرت تقاضا
+        # -----------------------------
+
+        if buy_volume > sell_volume * 5:
+            report["demand"] = "بسیار قوی"
+
+        elif buy_volume > sell_volume * 2:
+            report["demand"] = "قوی"
+
+        elif buy_volume > sell_volume:
+            report["demand"] = "متعادل"
+
+        else:
+            report["demand"] = "ضعیف"
+
+        # -----------------------------
+        # قدرت عرضه
+        # -----------------------------
+
+        if sell_volume == 0:
+            report["supply"] = "تقریباً وجود ندارد"
+
+        elif sell_volume > buy_volume:
+            report["supply"] = "زیاد"
+
+        else:
+            report["supply"] = "عادی"
+
+        # -----------------------------
+        # وضعیت صف
+        # -----------------------------
+
+        if queue_buy:
+
+            report["queue"] = "صف خرید"
+
+        elif queue_sell:
+
+            report["queue"] = "صف فروش"
+
+        else:
+
+            report["queue"] = "بدون صف"
+
+        # -----------------------------
+        # روند قیمت
+        # -----------------------------
+
+        if change > 2:
+
+            report["trend"] = "صعودی"
+
+        elif change < -2:
+
+            report["trend"] = "نزولی"
+
+        else:
+
+            report["trend"] = "خنثی"
+
+        # -----------------------------
+        # جمع‌بندی
+        # -----------------------------
+
+        if queue_buy and report["demand"] == "بسیار قوی":
+
+            report["summary"] = (
+                "قدرت خریداران بسیار بالاست و در حال حاضر "
+                "فشار فروش مؤثری مشاهده نمی‌شود."
+            )
+
+        elif queue_sell:
+
+            report["summary"] = (
+                "قدرت فروشندگان بالاست و ورود سرمایه "
+                "با ریسک همراه است."
+            )
+
+        else:
+
+            report["summary"] = (
+                "بازار در وضعیت متعادل قرار دارد."
+            )
+
+        return report
+
+
+==============================
+./tests/test_parser.py
+==============================
+from services.parsers.fund_parser import FundParser
+
+
+raw = {
+
+    "name": "دارونو",
+
+    "nav": "125,430",
+
+    "issue_price": "126,000",
+
+    "cancel_price": "124,800"
+
+}
+
+
+result = FundParser().parse(
+    raw
+)
+
+
+print(result)
+
+
+==============================
+./tests/test_analyzer.py
+==============================
+from services.tsetmc_client import TSETMCClient
+from core.market_engine import MarketEngine
+from core.market_analyzer import MarketAnalyzer
+
+client = TSETMCClient()
+
+engine = MarketEngine()
+
+analyzer = MarketAnalyzer()
+
+DARONO = "34074071043606558"
+
+book = client.orderbook(DARONO)
+
+price = client.closing_price(DARONO)
+
+market = engine.analyze(
+    book,
+    price
+)
+
+report = analyzer.analyze(
+    market
+)
+
+print()
+
+print("=" * 60)
+
+print("📊 تحلیل هوشمند بازار")
+
+print("=" * 60)
+
+print()
+
+print("قدرت تقاضا :", report["demand"])
+
+print("قدرت عرضه :", report["supply"])
+
+print("وضعیت صف :", report["queue"])
+
+print("روند :", report["trend"])
+
+print()
+
+print("جمع‌بندی")
+
+print(report["summary"])
+
+print()
+
+
+==============================
+./tests/test_scanner.py
+==============================
+
+from core.scanner import MarketScanner
+
+
+scanner = MarketScanner()
+
+
+results = scanner.scan()
+
+
+print()
+
+print("="*70)
+
+print("📊 گزارش مقایسه‌ای صندوق‌ها")
+
+print("="*70)
+
+
+for item in results:
+
+
+    print()
+
+    print(
+        "📌",
+        item["name"]
+    )
+
+
+    print(
+        "نوع:",
+        item["type"]
+    )
+
+
+    print(
+        "صف:",
+        item["analysis"]["queue"]
+    )
+
+
+    print(
+        "تقاضا:",
+        item["analysis"]["demand"]
+    )
+
+
+    print(
+        "روند:",
+        item["analysis"]["trend"]
+    )
+
+
+    print(
+        "نتیجه:",
+        item["analysis"]["summary"]
+    )
+
+
+
+==============================
+./tests/test_bpi.py
+==============================
+from services.nav import NAVService
+from services.market_data import MarketDataService
+
+from core.scoring import BPIScorer, FundMetrics
+from core.decision import DecisionEngine
+
+
+fund = "دارونو"
+
+nav = NAVService().get_nav(fund)
+performance = MarketDataService().get_fund_performance(fund)
+
+
+metrics = FundMetrics(
+    name=fund,
+    nav=nav["nav"],
+    daily_return=performance["daily_return"],
+    weekly_return=performance["weekly_return"],
+    monthly_return=performance["monthly_return"],
+)
+
+
+score = BPIScorer().calculate(metrics)
+
+decision = DecisionEngine().decide(score)
+
+
+print("📊 BoursePilot")
+print("----------------")
+print(f"Fund: {fund}")
+print(f"BPI: {score}/100")
+print(f"Decision: {decision}")
+
+
+==============================
+./tests/test_services.py
+==============================
+from services.nav import NAVService
+from services.market_data import MarketDataService
+from services.storage import HistoryStorage
+
+
+def main():
+
+    nav = NAVService()
+    market = MarketDataService()
+    storage = HistoryStorage()
+
+    fund = "دارونو"
+
+    nav_data = nav.get_nav(fund)
+    performance = market.get_fund_performance(fund)
+
+    result = {
+        **nav_data,
+        **performance
+    }
+
+    storage.save(result)
+
+    print(result)
+
+
+if __name__ == "__main__":
+    main()
+
+
+==============================
+./tests/test_tsetmc_api.py
+==============================
+
+import requests
+
+
+
+urls = [
+
+    "https://cdn.tsetmc.com/api/Instrument/GetInstrument",
+
+    "https://cdn.tsetmc.com/api/Instrument/GetInstrumentAll",
+
+    "https://cdn.tsetmc.com/api/Instrument/GetInstrumentSearch",
+
+    "https://cdn.tsetmc.com/api/Instrument/GetInstrumentByName",
+
+]
+
+
+
+for url in urls:
+
+
+    print()
+
+    print("="*70)
+
+    print(url)
+
+
+    try:
+
+
+        r = requests.get(
+
+            url,
+
+            headers={
+
+                "User-Agent":
+                "Mozilla/5.0"
+
+            },
+
+            timeout=15
+
+        )
+
+
+        print(
+            "Status:",
+            r.status_code
+        )
+
+
+        print(
+            "Length:",
+            len(r.text)
+        )
+
+
+        print(
+            r.text[:200]
+        )
+
+
+    except Exception as e:
+
+
+        print(
+            "ERROR:",
+            e
+        )
+
+
+
+
+==============================
+./tests/__init__.py
+==============================
+
+
+==============================
+./tests/test_real_scanner.py
+==============================
+
+from core.scanner import MarketScanner
+
+
+
+scanner = MarketScanner()
+
+
+
+results = scanner.scan()
+
+
+
+print()
+
+print("="*70)
+
+print(
+    "📊 نتیجه اسکن بازار"
+)
+
+print("="*70)
+
+
+
+for item in results:
+
+
+    print()
+
+    print(
+        "صندوق:",
+        item["name"]
+    )
+
+
+    print(
+        "نوع:",
+        item["type"]
+    )
+
+
+    print(
+        "صف:",
+        item["analysis"]["queue"]
+    )
+
+
+    print(
+        "تقاضا:",
+        item["analysis"]["demand"]
+    )
+
+
+    print(
+        "جمع‌بندی:",
+        item["analysis"]["summary"]
+    )
+
+
+
+==============================
+./tests/test_ranking.py
+==============================
+from services.fund_loader import FundLoader
+from services.analyzer import FundAnalyzer
+from core.ranking import RankingEngine
+
+
+funds = FundLoader().load()
+
+analyzer = FundAnalyzer()
+
+
+results = []
+
+
+for fund in funds:
+
+    result = analyzer.analyze(
+        fund["name"]
+    )
+
+    results.append(result)
+
+
+ranking = RankingEngine().rank(
+    results
+)
+
+
+print("📊 رتبه‌بندی BoursePilot")
+print("------------------------")
+
+
+for index, item in enumerate(ranking, start=1):
+
+    print(
+        f"{index}) {item.name} | "
+        f"BPI: {item.score}/100 | "
+        f"{item.decision}"
+    )
+
+
+==============================
+./tests/test_market_loader.py
+==============================
+
+
+from services.tsetmc_market import TSETMCMarket
+from core.market_universe import MarketUniverse
+
+
+
+market = TSETMCMarket()
+
+storage = MarketUniverse()
+
+
+
+print()
+
+print("="*70)
+
+print(
+    "📡 شروع دریافت اطلاعات بازار"
+)
+
+print("="*70)
+
+
+
+symbols = market.get_market_symbols()
+
+
+
+print()
+
+print(
+    "📌 تعداد کل نمادها:",
+    len(symbols)
+)
+
+
+
+funds = market.filter_funds(
+    symbols
+)
+
+
+
+print()
+
+print(
+    "🏦 تعداد صندوق‌های پیدا شده:",
+    len(funds)
+)
+
+
+
+print()
+
+print(
+    "نمونه صندوق‌ها:"
+)
+
+
+
+for fund in funds[:10]:
+
+    print(
+        "-",
+        fund["name"],
+        "|",
+        fund["ins_code"]
+    )
+
+
+
+storage.save(
+    funds
+)
+
+
+
+print()
+
+print(
+    "✅ ذخیره شد:"
+)
+
+print(
+    "data/market_universe.json"
+)
+
+
+
+
+==============================
+./tests/test_market.py
+==============================
+from services.tsetmc_client import TSETMCClient
+from core.market_engine import MarketEngine
+
+client = TSETMCClient()
+
+engine = MarketEngine()
+
+DARONO = "34074071043606558"
+
+book = client.orderbook(DARONO)
+
+price = client.closing_price(DARONO)
+
+result = engine.analyze(
+    book,
+    price
+)
+
+print()
+
+print("="*60)
+
+print("تحلیل بازار")
+
+print("="*60)
+
+for k,v in result.items():
+
+    print(k,":",v)
+
+
+==============================
+./tests/test_fund_provider.py
+==============================
+
+from services.providers.fund_provider import FundProvider
+
+
+provider = FundProvider()
+
+
+print()
+print("="*70)
+print("📡 تست دریافت لیست صندوق‌ها")
+print("="*70)
+
+
+funds = provider.get_funds()
+
+
+print()
+
+print(
+    "تعداد صندوق‌ها:",
+    len(funds)
+)
+
+
+print()
+
+for fund in funds[:10]:
+
+    print(
+        fund
+    )
+
+
+
+
+==============================
+./tests/test_client.py
+==============================
+from services.tsetmc_client import TSETMCClient
+
+
+DARONO = "34074071043606558"
+
+client = TSETMCClient()
+
+
+print("=" * 60)
+print("اطلاعات نماد")
+print("=" * 60)
+
+info = client.instrument(DARONO)
+
+print(
+    info["instrumentInfo"]["lVal18AFC"]
+)
+
+print(
+    info["instrumentInfo"]["faraDesc"]
+)
+
+
+print()
+
+print("=" * 60)
+print("قیمت")
+print("=" * 60)
+
+price = client.closing_price(DARONO)
+
+cp = price["closingPriceInfo"]
+
+print("آخرین قیمت:", cp["pClosing"])
+print("دیروز:", cp["priceYesterday"])
+print("حجم:", cp["qTotTran5J"])
+
+
+print()
+
+print("=" * 60)
+print("بهترین سفارش")
+print("=" * 60)
+
+book = client.orderbook(DARONO)
+
+for row in book["bestLimits"]:
+
+    print(row)
+
+
+print()
+
+print("=" * 60)
+print("آخرین معاملات")
+print("=" * 60)
+
+trades = client.trades(DARONO)
+
+for trade in trades["trade"][:10]:
+
+    print(
+        trade["hEven"],
+        trade["pTran"],
+        trade["qTitTran"]
+    )
+
+
+==============================
+./tests/test_collector.py
+==============================
+from services.providers.fund_provider import FundProvider
+from services.collectors.fund_collector import FundCollector
+
+
+provider = FundProvider()
+
+collector = FundCollector(
+    provider
+)
+
+
+result = collector.collect(
+    "دارونو"
+)
+
+
+print(result)
+
+
+==============================
+./tests/test_tsetmc_raw.py
+==============================
+
+import requests
+
+
+url = (
+    "https://www.tsetmc.com/Loader.aspx"
+)
+
+
+params = {
+
+    "ParTree":
+    "15131M"
+
+}
+
+
+response = requests.get(
+
+    url,
+
+    params=params,
+
+    headers={
+
+        "User-Agent":
+        "Mozilla/5.0"
+
+    },
+
+    timeout=30
+
+)
+
+
+print()
+
+print("="*70)
+
+print("طول پاسخ:")
+
+print(
+    len(response.text)
+)
+
+
+print()
+
+print("1000 کاراکتر اول:")
+
+print(
+    response.text[:1000]
+)
+
+
+
+
+==============================
+./tests/test_history.py
+==============================
+from services.providers.fund_provider import FundProvider
+from services.collectors.fund_collector import FundCollector
+from services.storage import StorageService
+
+
+provider = FundProvider()
+
+storage = StorageService()
+
+
+collector = FundCollector(
+    provider,
+    storage
+)
+
+
+result = collector.collect(
+    "دارونو"
+)
+
+
+print("Saved:")
+print(result)
+
+
+==============================
+./test_tsetmc.py
+==============================
+import json
+import requests
+
+INS_CODE = "34074071043606558"
+
+ENDPOINTS = {
+    "اطلاعات نماد": f"https://cdn.tsetmc.com/api/Instrument/GetInstrumentInfo/{INS_CODE}",
+    "اطلاعات قیمت": f"https://cdn.tsetmc.com/api/ClosingPrice/GetClosingPriceInfo/{INS_CODE}",
+    "بهترین سفارش‌ها": f"https://cdn.tsetmc.com/api/BestLimits/{INS_CODE}",
+    "خرید/فروش حقیقی و حقوقی": f"https://cdn.tsetmc.com/api/ClientType/GetClientType/{INS_CODE}",
+    "معاملات روز": f"https://cdn.tsetmc.com/api/Trade/GetTrade/{INS_CODE}",
+}
+
+headers = {
+    "User-Agent": "Mozilla/5.0"
+}
+
+for title, url in ENDPOINTS.items():
+    print("=" * 80)
+    print(title)
+    print(url)
+    try:
+        r = requests.get(url, headers=headers, timeout=15)
+        print("HTTP:", r.status_code)
+
+        if "application/json" in r.headers.get("content-type", ""):
+            data = r.json()
+            print(json.dumps(data, ensure_ascii=False, indent=2)[:4000])
+        else:
+            print(r.text[:1000])
+
+    except Exception as e:
+        print("ERROR:", e)
+
+    print()
+
+
+==============================
+./app.py
+==============================
+from reports.report import MorningReport
+
+
+def main():
+
+    report = MorningReport()
+
+    result = report.generate(
+        "دارونو"
+    )
+
+    print(result)
+
+
+if __name__ == "__main__":
+    main()
+
+
+==============================
+./ranking_app.py
+==============================
+from services.fund_loader import FundLoader
+from services.analyzer import FundAnalyzer
+
+from core.ranking import RankingEngine
+
+from reports.ranking_report import RankingReport
+
+
+
+def main():
+
+    funds = FundLoader().load()
+
+    analyzer = FundAnalyzer()
+
+    results = []
+
+
+    for fund in funds:
+
+        result = analyzer.analyze(
+            fund["name"]
+        )
+
+        results.append(result)
+
+
+    ranked = RankingEngine().rank(
+        results
+    )
+
+
+    report = RankingReport().generate(
+        ranked
+    )
+
+
+    print(report)
+
+
+
+if __name__ == "__main__":
+    main()
+
+
+==============================
+./services/fund_loader.py
+==============================
+import json
+
+
+class FundLoader:
+
+    def load(self):
+
+        with open(
+            "data/funds.json",
+            "r",
+            encoding="utf-8"
+        ) as file:
+
+            return json.load(file)
+
+
+==============================
+./services/parsers/fund_parser.py
+==============================
+class FundParser:
+
+
+    def parse(self, raw_data):
+
+        return {
+
+            "name": raw_data.get("name"),
+
+            "nav": self._to_number(
+                raw_data.get("nav")
+            ),
+
+            "issue_price": self._to_number(
+                raw_data.get("issue_price")
+            ),
+
+            "cancel_price": self._to_number(
+                raw_data.get("cancel_price")
+            )
+
+        }
+
+
+    def _to_number(self, value):
+
+        if value is None:
+            return 0
+
+
+        if isinstance(value, int):
+            return value
+
+
+        value = (
+            str(value)
+            .replace(",", "")
+            .strip()
+        )
+
+
+        try:
+            return int(value)
+
+        except ValueError:
+            return 0
+
+
+==============================
+./services/parsers/__init__.py
+==============================
+
+
+==============================
+./services/collectors/__init__.py
+==============================
+
+
+==============================
+./services/collectors/fund_collector.py
+==============================
+from datetime import datetime
+
+
+class FundCollector:
+
+
+    def __init__(
+        self,
+        provider,
+        storage
+    ):
+
+        self.provider = provider
+
+        self.storage = storage
+
+
+
+    def collect(self, fund_name):
+
+
+        data = self.provider.get_nav(
+            fund_name
+        )
+
+
+        record = {
+
+            "name": fund_name,
+
+            "nav": data["nav"],
+
+            "date": datetime.now().isoformat()
+
+        }
+
+
+        self.storage.save(
+            record
+        )
+
+
+        return record
+
+
+==============================
+./services/telegram.py
+==============================
+import requests
+
+from config import settings
+
+
+class TelegramService:
+
+    def send_message(self, message: str) -> bool:
+        if not settings.TELEGRAM_BOT_TOKEN or not settings.TELEGRAM_CHAT_ID:
+            print("Telegram is not configured.")
+            print(message)
+            return False
+
+        url = (
+            f"https://api.telegram.org/bot"
+            f"{settings.TELEGRAM_BOT_TOKEN}/sendMessage"
+        )
+
+        payload = {
+            "chat_id": settings.TELEGRAM_CHAT_ID,
+            "text": message
+        }
+
+        response = requests.post(url, json=payload, timeout=10)
+
+        return response.ok
+
+
+==============================
+./services/providers/mock_provider.py
+==============================
+from datetime import datetime
+
+
+class MockMarketProvider:
+
+    def get_fund_data(self, fund_name):
+
+        data = {
+
+            "دارونو": {
+                "daily_return": 1.2,
+                "weekly_return": 3.8,
+                "monthly_return": 8.5,
+                "nav": 125430
+            },
+
+            "عیار": {
+                "daily_return": 0.7,
+                "weekly_return": 2.1,
+                "monthly_return": 5.2,
+                "nav": 108200
+            },
+
+            "سیمانو": {
+                "daily_return": -0.2,
+                "weekly_return": 0.5,
+                "monthly_return": 1.4,
+                "nav": 97500
+            }
+
+        }
+
+
+        result = data.get(
+            fund_name,
+            {
+                "daily_return": 0,
+                "weekly_return": 0,
+                "monthly_return": 0,
+                "nav": 100000
+            }
+        )
+
+
+        return {
+            "name": fund_name,
+            **result,
+            "date": datetime.now().isoformat()
+        }
+
+
+==============================
+./services/providers/public_fund_provider.py
+==============================
+import requests
+
+
+class PublicFundProvider:
+
+
+    def __init__(self, url=None):
+
+        self.url = url
+
+
+
+    def fetch(self, fund_name):
+
+        if not self.url:
+
+            raise ValueError(
+                "Public fund data URL is not configured"
+            )
+
+
+        response = requests.get(
+            self.url,
+            timeout=10
+        )
+
+
+        response.raise_for_status()
+
+
+        return response.json()
+
+
+==============================
+./services/providers/__init__.py
+==============================
+
+
+==============================
+./services/providers/tsetmc_provider.py
+==============================
+class TSETMCProvider:
+
+    def get_symbol_data(self, symbol):
+
+        raise NotImplementedError(
+            "TSETMC provider will be implemented in Release 0.4.2"
+        )
+
+
+==============================
+./services/providers/fund_provider.py
+==============================
+from datetime import datetime
+
+
+class FundProvider:
+
+    def get_nav(self, fund_name):
+
+        mock_nav = {
+
+            "دارونو": 125430,
+
+            "عیار": 108200,
+
+            "سیمانو": 97500
+
+        }
+
+
+        return {
+
+            "name": fund_name,
+
+            "nav": mock_nav.get(
+                fund_name,
+                100000
+            ),
+
+            "date": datetime.now().isoformat()
+
+        }
+
+
+==============================
+./services/analyzer.py
+==============================
+from services.nav import NAVService
+from services.market_data import MarketDataService
+
+from core.scoring import BPIScorer, FundMetrics
+from core.decision import DecisionEngine
+from core.ranking import FundRanking
+
+
+class FundAnalyzer:
+
+    def analyze(self, fund_name):
+
+        nav_data = NAVService().get_nav(
+            fund_name
+        )
+
+        market_data = MarketDataService().get_fund_performance(
+            fund_name
+        )
+
+
+        metrics = FundMetrics(
+            name=fund_name,
+            nav=nav_data["nav"],
+            daily_return=market_data["daily_return"],
+            weekly_return=market_data["weekly_return"],
+            monthly_return=market_data["monthly_return"]
+        )
+
+
+        score = BPIScorer().calculate(
+            metrics
+        )
+
+
+        decision = DecisionEngine().decide(
+            score
+        )
+
+
+        return FundRanking(
+            name=fund_name,
+            score=score,
+            decision=decision.action
+        )
+
+
+==============================
+./services/__init__.py
+==============================
+
+
+==============================
+./services/storage.py
+==============================
+import json
+import os
+from datetime import datetime
+
+
+class StorageService:
+
+
+    def __init__(self):
+
+        self.path = "data/history"
+
+
+    def save(self, data):
+
+        os.makedirs(
+            self.path,
+            exist_ok=True
+        )
+
+
+        filename = (
+            datetime.now()
+            .strftime("%Y-%m-%d")
+            + ".json"
+        )
+
+
+        filepath = os.path.join(
+            self.path,
+            filename
+        )
+
+
+        history = []
+
+
+        if os.path.exists(filepath):
+
+            with open(
+                filepath,
+                "r",
+                encoding="utf-8"
+            ) as file:
+
+                history = json.load(file)
+
+
+        history.append(data)
+
+
+        with open(
+            filepath,
+            "w",
+            encoding="utf-8"
+        ) as file:
+
+            json.dump(
+                history,
+                file,
+                ensure_ascii=False,
+                indent=4
+            )
+
+
+        return filepath
+
+
+==============================
+./services/market_data.py
+==============================
+from services.providers.mock_provider import MockMarketProvider
+
+
+class MarketDataService:
+
+    def __init__(self):
+
+        self.provider = MockMarketProvider()
+
+
+    def get_fund_performance(self, fund_name):
+
+        data = self.provider.get_fund_data(
+            fund_name
+        )
+
+
+        return {
+
+            "daily_return": data["daily_return"],
+
+            "weekly_return": data["weekly_return"],
+
+            "monthly_return": data["monthly_return"]
+
+        }
+
+
+==============================
+./services/nav.py
+==============================
+from datetime import datetime
+
+
+class NAVService:
+
+    def get_nav(self, fund_name):
+
+        mock_nav = {
+
+            "دارونو": 125430,
+
+            "عیار": 108200,
+
+            "سیمانو": 97500
+
+        }
+
+
+        return {
+            "name": fund_name,
+            "nav": mock_nav.get(
+                fund_name,
+                100000
+            ),
+            "date": datetime.now().isoformat()
+        }
+
+
+==============================
+./services/tsetmc_market.py
+==============================
+
+import requests
+
+
+class TSETMCMarket:
+
+
+    def __init__(self):
+
+        self.url = (
+            "https://www.tsetmc.com/Loader.aspx"
+        )
+
+
+
+    def get_market_symbols(self):
+
+        """
+        دریافت لیست نمادها
+        """
+
+        symbols = []
+
+
+        try:
+
+            params = {
+
+                "ParTree": "15131M"
+
+            }
+
+
+            response = requests.get(
+
+                self.url,
+
+                params=params,
+
+                headers={
+
+                    "User-Agent":
+                    "Mozilla/5.0"
+
+                },
+
+                timeout=30
+
+            )
+
+
+            response.raise_for_status()
+
+
+            text = response.text
+
+
+
+            # بررسی اولیه پاسخ
+
+            if len(text) < 100:
+
+                print(
+                    "پاسخ بازار معتبر نیست"
+                )
+
+                return []
+
+
+
+            print(
+                "داده خام بازار دریافت شد"
+            )
+
+
+
+        except Exception as e:
+
+
+            print(
+                "❌ خطا در اتصال TSETMC:",
+                e
+            )
+
+
+
+        return symbols
+
+
+
+    def filter_funds(
+        self,
+        symbols
+    ):
+
+
+        funds = []
+
+
+        keywords = [
+
+            "صندوق",
+
+            "دارا",
+
+            "کمند",
+
+            "عیار",
+
+            "طلا",
+
+            "اهرم",
+
+            "توان",
+
+            "ثابت"
+
+        ]
+
+
+
+        for item in symbols:
+
+
+            name = item.get(
+                "name",
+                ""
+            )
+
+
+            if any(
+                k in name
+                for k in keywords
+            ):
+
+
+                funds.append(item)
+
+
+
+        return funds
+
+
+
+
+==============================
+./services/tsetmc_client.py
+==============================
+import requests
+
+
+class TSETMCClient:
+
+    BASE_URL = "https://cdn.tsetmc.com/api"
+
+    def __init__(self):
+
+        self.session = requests.Session()
+
+        self.session.headers.update(
+            {
+                "User-Agent": "Mozilla/5.0"
+            }
+        )
+
+    def _get(self, endpoint):
+
+        response = self.session.get(
+            f"{self.BASE_URL}/{endpoint}",
+            timeout=20
+        )
+
+        response.raise_for_status()
+
+        return response.json()
+
+    def instrument(self, ins_code):
+
+        return self._get(
+            f"Instrument/GetInstrumentInfo/{ins_code}"
+        )
+
+    def closing_price(self, ins_code):
+
+        return self._get(
+            f"ClosingPrice/GetClosingPriceInfo/{ins_code}"
+        )
+
+    def orderbook(self, ins_code):
+
+        return self._get(
+            f"BestLimits/{ins_code}"
+        )
+
+    def trades(self, ins_code):
+
+        return self._get(
+            f"Trade/GetTrade/{ins_code}"
+        )
+
+    def history(self, ins_code):
+
+        return self._get(
+            f"ClosingPrice/GetClosingPriceDailyList/{ins_code}/0"
+        )
+
+
+==============================
+./reports/ranking_report.py
+==============================
+from datetime import datetime
+
+
+class RankingReport:
+
+    def generate(self, ranked_funds):
+
+        if not ranked_funds:
+            return "داده‌ای برای تحلیل وجود ندارد."
+
+        lines = []
+
+        lines.append(
+            "📊 گزارش صبحگاهی BoursePilot"
+        )
+
+        lines.append(
+            "============================"
+        )
+
+        lines.append(
+            "\n🏆 رتبه‌بندی صندوق‌ها\n"
+        )
+
+
+        medals = [
+            "🥇",
+            "🥈",
+            "🥉"
+        ]
+
+
+        for index, fund in enumerate(ranked_funds, start=1):
+
+            medal = (
+                medals[index-1]
+                if index <= 3
+                else f"{index})"
+            )
+
+
+            lines.append(
+                f"""
+{medal} {fund.name}
+
+⭐ امتیاز BPI:
+{fund.score} از 100
+
+📌 اقدام:
+{fund.decision}
+"""
+            )
+
+
+        best = ranked_funds[0]
+
+        weakest = ranked_funds[-1]
+
+
+        lines.append(
+            f"""
+⭐ بهترین گزینه امروز:
+{best.name}
+
+⚠️ نیازمند بررسی بیشتر:
+{weakest.name}
+
+🕘 زمان تولید:
+{datetime.now().strftime("%Y/%m/%d - %H:%M")}
+"""
+        )
+
+
+        return "\n".join(lines)
+
+
+==============================
+./reports/__init__.py
+==============================
+
+
+==============================
+./reports/report.py
+==============================
+from datetime import datetime
+
+from services.nav import NAVService
+from services.market_data import MarketDataService
+
+from core.scoring import BPIScorer, FundMetrics
+from core.decision import DecisionEngine
+
+
+class MorningReport:
+
+    def generate(self, fund_name: str) -> str:
+
+        nav_data = NAVService().get_nav(fund_name)
+
+        market_data = MarketDataService().get_fund_performance(
+            fund_name
+        )
+
+        metrics = FundMetrics(
+            name=fund_name,
+            nav=nav_data["nav"],
+            daily_return=market_data["daily_return"],
+            weekly_return=market_data["weekly_return"],
+            monthly_return=market_data["monthly_return"],
+        )
+
+        scorer = BPIScorer()
+
+        score = scorer.calculate(metrics)
+
+        decision = DecisionEngine().decide(score)
+
+        now = datetime.now().strftime(
+            "%Y/%m/%d - %H:%M"
+        )
+
+        report = f"""
+📊 گزارش صبحگاهی BoursePilot
+----------------------------
+
+🏆 صندوق:
+{fund_name}
+
+💰 ارزش خالص دارایی (NAV):
+{nav_data["nav"]}
+
+📈 بازده روزانه:
+{market_data["daily_return"]}٪
+
+📈 بازده هفتگی:
+{market_data["weekly_return"]}٪
+
+📈 بازده ماهانه:
+{market_data["monthly_return"]}٪
+
+⭐ امتیاز BPI:
+{score} از 100
+
+📌 اقدام پیشنهادی:
+{decision.action}
+
+🔎 توضیح تحلیل:
+{decision.description}
+
+⚠️ سطح اطمینان:
+{decision.confidence}
+
+🕘 زمان تولید:
+{now}
+"""
+
+        return report.strip()
