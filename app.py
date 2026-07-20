@@ -5,7 +5,11 @@ def main():
 
     report = MorningReport()
 
-    print(report.generate())
+    result = report.generate(
+        "دارونو"
+    )
+
+    print(result)
 
 
 if __name__ == "__main__":

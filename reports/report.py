@@ -1,31 +1,73 @@
-from core.scoring import FundScore
+from datetime import datetime
+
+from services.nav import NAVService
+from services.market_data import MarketDataService
+
+from core.scoring import BPIScorer, FundMetrics
+from core.decision import DecisionEngine
 
 
 class MorningReport:
 
-    def generate(self) -> str:
+    def generate(self, fund_name: str) -> str:
 
-        fund = FundScore(
-            name="دارونو",
-            nav_score=90,
-            performance_score=85,
-            risk_score=80,
+        nav_data = NAVService().get_nav(fund_name)
+
+        market_data = MarketDataService().get_fund_performance(
+            fund_name
         )
 
-        score = fund.calculate_bpi()
+        metrics = FundMetrics(
+            name=fund_name,
+            nav=nav_data["nav"],
+            daily_return=market_data["daily_return"],
+            weekly_return=market_data["weekly_return"],
+            monthly_return=market_data["monthly_return"],
+        )
+
+        scorer = BPIScorer()
+
+        score = scorer.calculate(metrics)
+
+        decision = DecisionEngine().decide(score)
+
+        now = datetime.now().strftime(
+            "%Y/%m/%d - %H:%M"
+        )
 
         report = f"""
-📊 BoursePilot Morning Report
+📊 گزارش صبحگاهی BoursePilot
 ----------------------------
 
 🏆 صندوق:
-{fund.name}
+{fund_name}
 
-⭐ BPI Score:
-{score}/100
+💰 ارزش خالص دارایی (NAV):
+{nav_data["nav"]}
 
-🟢 System:
-READY
+📈 بازده روزانه:
+{market_data["daily_return"]}٪
+
+📈 بازده هفتگی:
+{market_data["weekly_return"]}٪
+
+📈 بازده ماهانه:
+{market_data["monthly_return"]}٪
+
+⭐ امتیاز BPI:
+{score} از 100
+
+📌 اقدام پیشنهادی:
+{decision.action}
+
+🔎 توضیح تحلیل:
+{decision.description}
+
+⚠️ سطح اطمینان:
+{decision.confidence}
+
+🕘 زمان تولید:
+{now}
 """
 
         return report.strip()
