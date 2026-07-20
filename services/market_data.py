@@ -1,10 +1,26 @@
+from services.providers.mock_provider import MockMarketProvider
+
+
 class MarketDataService:
 
-    def get_fund_performance(self, fund_name: str) -> dict:
+    def __init__(self):
+
+        self.provider = MockMarketProvider()
+
+
+    def get_fund_performance(self, fund_name):
+
+        data = self.provider.get_fund_data(
+            fund_name
+        )
+
 
         return {
-            "name": fund_name,
-            "daily_return": 1.2,
-            "weekly_return": 3.8,
-            "monthly_return": 8.5
+
+            "daily_return": data["daily_return"],
+
+            "weekly_return": data["weekly_return"],
+
+            "monthly_return": data["monthly_return"]
+
         }

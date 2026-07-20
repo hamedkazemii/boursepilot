@@ -3,14 +3,24 @@ from datetime import datetime
 
 class NAVService:
 
-    def get_nav(self, fund_name: str) -> dict:
-        """
-        Temporary NAV provider.
-        Later connected to real market API.
-        """
+    def get_nav(self, fund_name):
+
+        mock_nav = {
+
+            "دارونو": 125430,
+
+            "عیار": 108200,
+
+            "سیمانو": 97500
+
+        }
+
 
         return {
             "name": fund_name,
-            "nav": 125430,
+            "nav": mock_nav.get(
+                fund_name,
+                100000
+            ),
             "date": datetime.now().isoformat()
         }
