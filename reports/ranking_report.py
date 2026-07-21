@@ -11,7 +11,7 @@ class RankingReport:
         lines = []
 
         lines.append(
-            "📊 گزارش صبحگاهی BoursePilot"
+            "📊 گزارش صبحگاهی Sandoghchi"
         )
 
         lines.append(

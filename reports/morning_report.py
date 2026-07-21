@@ -7,7 +7,7 @@ def create_report(items):
 
 
     lines.append(
-        "📊 گزارش صبحگاهی BoursePilot"
+        "📊 گزارش صبحگاهی Sandoghchi"
     )
 
 

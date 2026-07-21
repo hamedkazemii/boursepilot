@@ -36,7 +36,7 @@ class MorningReport:
         )
 
         report = f"""
-📊 گزارش صبحگاهی BoursePilot
+📊 گزارش صبحگاهی Sandoghchi
 ----------------------------
 
 🏆 صندوق:

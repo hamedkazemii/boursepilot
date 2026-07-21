@@ -4,7 +4,7 @@ from reports.recommendation_report import save_report
 
 
 print("="*60)
-print("BoursePilot Real Market Scan")
+print("Sandoghchi Real Market Scan")
 print("="*60)
 
 

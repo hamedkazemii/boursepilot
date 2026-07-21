@@ -1,7 +1,7 @@
-from services.tsetmc_client import TSETMCClient
+from services.brsapi.all_symbols import BRSClient
 from core.market_engine import MarketEngine
 
-client = TSETMCClient()
+client = BRSClient()
 
 engine = MarketEngine()
 

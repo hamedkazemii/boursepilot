@@ -1,6 +1,6 @@
 
 from services.fund_loader import FundLoader
-from services.tsetmc_client import TSETMCClient
+from services.brsapi.all_symbols import BRSClient
 
 
 
@@ -11,7 +11,7 @@ class FundValidator:
 
         self.loader = FundLoader()
 
-        self.client = TSETMCClient()
+        self.client = BRSClient()
 
 
 

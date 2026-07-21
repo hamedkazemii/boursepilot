@@ -1,4 +1,4 @@
-from services.tsetmc_client import TSETMCClient
+from services.brsapi.all_symbols import BRSClient
 from services.fund_registry import FundRegistry
 from services.fund_classifier import FundClassifier
 from core.market_engine import MarketEngine
@@ -12,7 +12,7 @@ class RealMarketScanner:
 
     def __init__(self):
 
-        self.client=TSETMCClient()
+        self.client=BRSClient()
 
         self.registry=FundRegistry()
 

@@ -1,11 +1,11 @@
 import json
-from services.tsetmc_client import TSETMCClient
+from services.brsapi.all_symbols import BRSClient
 
 
 INPUT = "data/fund_registry.json"
 
 
-client = TSETMCClient()
+client = BRSClient()
 
 
 def detect(info):

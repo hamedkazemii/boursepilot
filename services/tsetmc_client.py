@@ -1,7 +1,7 @@
 import requests
 
 
-class TSETMCClient:
+class BRSClient:
 
     BASE_URL = "https://cdn.tsetmc.com/api"
 

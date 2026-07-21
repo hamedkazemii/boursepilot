@@ -1,14 +1,14 @@
 import json
 from datetime import datetime
 
-from services.tsetmc_client import TSETMCClient
+from services.brsapi.all_symbols import BRSClient
 
 
 INPUT = "data/fund_registry.json"
 OUTPUT = "data/fund_scores.json"
 
 
-client = TSETMCClient()
+client = BRSClient()
 
 
 funds = json.load(

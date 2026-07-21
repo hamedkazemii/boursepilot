@@ -25,7 +25,7 @@ score = BPIScorer().calculate(metrics)
 decision = DecisionEngine().decide(score)
 
 
-print("📊 BoursePilot")
+print("📊 Sandoghchi")
 print("----------------")
 print(f"Fund: {fund}")
 print(f"BPI: {score}/100")

@@ -1,9 +1,9 @@
-from services.tsetmc_client import TSETMCClient
+from services.brsapi.all_symbols import BRSClient
 from services.fund_classifier import FundClassifier
 
 
 
-client = TSETMCClient()
+client = BRSClient()
 
 classifier = FundClassifier()
 

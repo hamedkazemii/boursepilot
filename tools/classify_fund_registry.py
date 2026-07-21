@@ -1,6 +1,6 @@
 import json
 
-from services.tsetmc_client import TSETMCClient
+from services.brsapi.all_symbols import BRSClient
 from services.fund_classifier import FundClassifier
 
 
@@ -9,7 +9,7 @@ INPUT = "data/fund_registry.json"
 
 def main():
 
-    client = TSETMCClient()
+    client = BRSClient()
 
     classifier = FundClassifier()
 

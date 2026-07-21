@@ -25,7 +25,7 @@ ranking = RankingEngine().rank(
 )
 
 
-print("📊 رتبه‌بندی BoursePilot")
+print("📊 رتبه‌بندی Sandoghchi")
 print("------------------------")
 
 

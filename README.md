@@ -26,3 +26,47 @@ Added:
 - MarketWatch preparation
 - ETF registry preparation
 
+
+
+## Version 0.5
+
+Real Fund Pipeline
+
+- MarketWatch Excel based registry
+- Real fund discovery
+- TSETMC live data
+- Persian morning report
+
+
+
+## Version 0.5
+
+Real Fund Pipeline
+
+- MarketWatch Excel based registry
+- Real fund discovery
+- TSETMC live data
+- Persian morning report
+
+
+
+## Version 0.5
+
+Real Fund Pipeline
+
+- MarketWatch Excel based registry
+- Real fund discovery
+- TSETMC live data
+- Persian morning report
+
+
+
+## Version 0.5
+
+Real Fund Pipeline
+
+- MarketWatch Excel based registry
+- Real fund discovery
+- TSETMC live data
+- Persian morning report
+

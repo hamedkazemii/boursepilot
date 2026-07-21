@@ -1,6 +1,6 @@
 import json
 
-from services.tsetmc_client import TSETMCClient
+from services.brsapi.all_symbols import BRSClient
 
 
 FILE="data/fund_registry.json"
@@ -45,7 +45,7 @@ def is_real_fund(info):
 
 def main():
 
-    client=TSETMCClient()
+    client=BRSClient()
 
 
     with open(

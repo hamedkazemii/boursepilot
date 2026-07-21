@@ -1,9 +1,9 @@
-from services.tsetmc_client import TSETMCClient
+from services.brsapi.all_symbols import BRSClient
 
 
 DARONO = "34074071043606558"
 
-client = TSETMCClient()
+client = BRSClient()
 
 
 print("=" * 60)

@@ -1,7 +1,7 @@
-from services.tsetmc_client import TSETMCClient
+from services.brsapi.all_symbols import BRSClient
 import json
 
-client = TSETMCClient()
+client = BRSClient()
 
 code = "19040514831923530"
 

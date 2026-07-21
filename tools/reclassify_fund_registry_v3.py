@@ -1,12 +1,12 @@
 import json
 import time
 
-from services.tsetmc_client import TSETMCClient
+from services.brsapi.all_symbols import BRSClient
 
 
 FILE = "data/fund_registry.json"
 
-client = TSETMCClient()
+client = BRSClient()
 
 
 with open(FILE, encoding="utf-8") as f:

@@ -33,7 +33,7 @@ HEADERS = {
 }
 
 print("=" * 80)
-print("BoursePilot Endpoint Explorer")
+print("Sandoghchi Endpoint Explorer")
 print("=" * 80)
 
 for name, url in ENDPOINTS.items():
