@@ -2,55 +2,34 @@
 
 دستیار هوشمند صندوق‌های قابل‌معامله ایران.
 
-**نسخه:** 0.3.0  
-**داده بازار:** [BrsApi.ir](https://brsapi.ir)  
-**وضعیت فاز:** لایه API آماده — رنکینگ/تلگرام/وب‌اپ در فازهای بعد
+**نسخه:** 0.4.0  
+**داده:** BrsApi.ir
 
 ---
 
-## قابلیت‌های هدف محصول
-- کشف روزانه ~۴۰۰ صندوق قابل معامله
-- رنکینگ فارسی با توضیح
-- پایش پیش‌سفارش ۸:۴۵ تا ۹:۰۰
-- مشاوره روی پرتفوی کاربر
-- ربات تلگرام + وب‌اپ + لندینگ
-- خودارزیابی سیگنال‌ها
+## الان چه کار می‌کند؟
+- اتصال زنده BRS
+- کشف روزانه ~۴۰۰ صندوق‌مانند
+- امتیاز چندعاملی + رنکینگ فارسی با توضیح
+- اسکن پیش‌سفارش (عمق خرید/فروش)
+- ذخیره اسنپ‌شات روزانه
 
----
-
-## شروع سریع — لایه API
-
+## اجرا
 ```bash
-python -m venv .venv
-source .venv/bin/activate
 pip install -r requirements.txt
+cp .env.example .env   # BRS_API_KEY را بگذارید
 
-cp .env.example .env
-# BRS_API_KEY را در .env بگذارید
+python -m unittest tests.test_textnorm tests.test_brs_mapper tests.test_brs_provider tests.test_score_engine -v
 
-# تست واحد (بدون شبکه)
-python -m unittest tests.test_textnorm tests.test_brs_mapper tests.test_brs_provider -v
-
-# اسموک زنده
-python tools/brs_smoke_test.py
+python tools/run_snapshot.py
+python tools/run_daily_rank.py --no-nav
+python tools/run_preopen_scan.py
 ```
 
-### استفاده در کد
-```python
-from services.providers import get_market_data_provider
+## مستندات
+- `docs/BRS_API.md`
+- `docs/DAILY_RANKING.md`
+- `config/scoring.yaml`
 
-provider = get_market_data_provider()
-funds = provider.get_fund_symbols()
-quote = provider.get_symbol("عیار")
-nav = provider.get_nav("عیار")
-```
-
-مستند API: [`docs/BRS_API.md`](docs/BRS_API.md)
-
----
-
-## Version 0.2.0 (legacy notes)
-- Live market architecture scaffold
-- Multi factor BPI engine (early)
-- Persian morning report scaffold
-- ETF registry preparation
+## نقشه بعدی
+تلگرام V1 → وب‌اپ → لندینگ → پرتفوی شخصی → ارزیابی دقت سیگنال
