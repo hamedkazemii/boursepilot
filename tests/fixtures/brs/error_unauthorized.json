@@ -1,0 +1,6 @@
+{
+  "code_http": 401,
+  "successful": false,
+  "status": "unauthorized",
+  "message_error": "Parameter 'key' with value 'x' is not valid."
+}
