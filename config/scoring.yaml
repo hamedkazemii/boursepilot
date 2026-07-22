@@ -1,0 +1,66 @@
+# وزن‌ها و آستانه‌های امتیازدهی صندوقچی
+# هیچ عدد بازار (قیمت/NAV) اینجا hardcode نمی‌شود — فقط پارامترهای مدل.
+
+version: 1
+
+weights:
+  liquidity: 0.18
+  orderbook_pressure: 0.20
+  money_flow: 0.18
+  momentum: 0.16
+  volume_value: 0.14
+  nav_premium: 0.14
+
+# اگر NAV نباشد، وزن nav بین بقیه redistribue می‌شود
+redistribute_missing: true
+
+recommendation_thresholds:
+  strong_buy: 80
+  buy: 65
+  neutral: 45
+  weak: 30
+  # زیر weak => sell
+
+labels:
+  strong_buy: "خرید قوی"
+  buy: "خرید"
+  neutral: "خنثی"
+  weak: "ضعیف"
+  sell: "فروش"
+
+# آستانه‌های نرمال‌سازی فاکتورها (قابل تنظیم)
+liquidity:
+  # value_score = min(100, log10(1+tval) / log10(1+ref) * 100)
+  value_ref: 50000000000   # 50 میلیارد ریال
+  volume_ref: 5000000
+  depth_ref: 200000
+
+orderbook:
+  # pressure = bid_qty / max(ask_qty, 1)
+  strong_bid_ratio: 3.0
+  mild_bid_ratio: 1.5
+  strong_ask_ratio: 0.33
+
+money_flow:
+  # real_buy_share among real+legal buy
+  strong_real_buy: 0.70
+  mild_real_buy: 0.55
+
+momentum:
+  # change_close_pct bands
+  strong_up: 2.0
+  mild_up: 0.5
+  mild_down: -0.5
+  strong_down: -2.0
+
+nav_premium:
+  # premium_pct = (price - redeem_nav) / redeem_nav * 100
+  # امتیاز بالاتر = تخفیف بیشتر (ارزان‌تر از NAV)
+  deep_discount: -2.0
+  mild_discount: -0.5
+  mild_premium: 0.5
+  high_premium: 2.0
+
+preopen:
+  # برای رتبه‌بندی پیش‌سفارش
+  min_depth_qty: 1000

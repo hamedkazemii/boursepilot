@@ -68,5 +68,12 @@ class Settings:
     # provider فعال برای لایه داده بازار
     MARKET_DATA_PROVIDER: str = _env("MARKET_DATA_PROVIDER", "brs")
 
+    # --- Snapshot / ranking ---
+    SNAPSHOT_DIR: str = _env("SNAPSHOT_DIR", "data/snapshots")
+    SCORING_CONFIG_PATH: str = _env("SCORING_CONFIG_PATH", "config/scoring.yaml")
+    # برای سرعت توسعه پیش‌فرض false؛ در پروداکشن true کنید
+    FETCH_NAV_IN_DAILY_RANK: bool = _env("FETCH_NAV_IN_DAILY_RANK", "false").lower() in {"1", "true", "yes", "on"}
+    NAV_FETCH_WORKERS: int = _env_int("NAV_FETCH_WORKERS", 4)
+
 
 settings = Settings()
