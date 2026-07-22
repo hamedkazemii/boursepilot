@@ -10,3 +10,6 @@ HEADERS = {
     ),
     "Accept": "application/json"
 }
+TIMEOUT = 30
+
+BASE_URL = BRS_BASE_URL

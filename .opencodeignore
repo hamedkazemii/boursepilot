@@ -1,0 +1,6 @@
+.venv
+.git
+__pycache__
+reports
+data/history
+node_modules
