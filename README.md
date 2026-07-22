@@ -2,34 +2,35 @@
 
 دستیار هوشمند صندوق‌های قابل‌معامله ایران.
 
-**نسخه:** 0.4.0  
-**داده:** BrsApi.ir
+**نسخه:** 0.5.0
 
----
+## قابلیت‌های فعلی
+- داده زنده BrsApi
+- کشف روزانه صندوق‌ها
+- امتیاز چندعاملی + رنکینگ فارسی
+- پیش‌سفارش
+- ارسال گزارش به **کانال تلگرام**
+- ربات دستوری (`/rank` `/preopen` `/fund` ...)
 
-## الان چه کار می‌کند؟
-- اتصال زنده BRS
-- کشف روزانه ~۴۰۰ صندوق‌مانند
-- امتیاز چندعاملی + رنکینگ فارسی با توضیح
-- اسکن پیش‌سفارش (عمق خرید/فروش)
-- ذخیره اسنپ‌شات روزانه
+## Secrets
+```
+BRS_API_KEY
+TELEGRAM_BOT_TOKEN
+TELEGRAM_CHAT_ID
+```
 
 ## اجرا
 ```bash
 pip install -r requirements.txt
-cp .env.example .env   # BRS_API_KEY را بگذارید
+cp .env.example .env
 
-python -m unittest tests.test_textnorm tests.test_brs_mapper tests.test_brs_provider tests.test_score_engine -v
+python -m unittest tests.test_textnorm tests.test_brs_mapper tests.test_brs_provider tests.test_score_engine tests.test_telegram -v
 
-python tools/run_snapshot.py
-python tools/run_daily_rank.py --no-nav
-python tools/run_preopen_scan.py
+python tools/run_telegram_rank.py --no-nav --dry-run
+python tools/run_telegram_preopen.py --dry-run
 ```
 
 ## مستندات
 - `docs/BRS_API.md`
 - `docs/DAILY_RANKING.md`
-- `config/scoring.yaml`
-
-## نقشه بعدی
-تلگرام V1 → وب‌اپ → لندینگ → پرتفوی شخصی → ارزیابی دقت سیگنال
+- `docs/TELEGRAM.md`
