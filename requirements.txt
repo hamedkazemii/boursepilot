@@ -3,3 +3,6 @@ pandas
 openpyxl
 python-dotenv
 PyYAML
+fastapi
+uvicorn[standard]
+pydantic
