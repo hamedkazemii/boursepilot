@@ -1,3 +1,3 @@
-"""AI Advisor (Sprint 7) — placeholder."""
+from core.ai.advisor import AIAdvisor
 
-__all__: list[str] = []
+__all__ = ["AIAdvisor"]
