@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+
+<head>
+
+<meta charset="UTF-8">
+
+<title>مشاور صندوقچی</title>
+
+<link rel="stylesheet" href="/assets/css/style.css">
+<link rel="stylesheet" href="/assets/css/pages.css">
+
+</head>
+
+
+<body>
+
+
+<header class="header">
+
+<h1>
+مشاور هوشمند صندوقچی
+</h1>
+
+<a href="/">
+خانه
+</a>
+
+</header>
+
+
+
+<main>
+
+
+<section class="card">
+
+
+<label>
+سرمایه
+</label>
+
+<input id="capital" placeholder="مثلا 50000000">
+
+
+<label>
+ریسک
+</label>
+
+<select id="risk">
+
+<option value="low">
+کم
+</option>
+
+<option value="medium">
+متوسط
+</option>
+
+<option value="high">
+زیاد
+</option>
+
+</select>
+
+
+<label>
+افق سرمایه‌گذاری
+</label>
+
+<select id="horizon">
+
+<option>
+6 ماه
+</option>
+
+<option>
+12 ماه
+</option>
+
+<option>
+24 ماه
+</option>
+
+</select>
+
+
+<button onclick="advise()">
+دریافت تحلیل
+</button>
+
+
+</section>
+
+
+
+<section class="card">
+
+<div id="answer">
+نتیجه اینجا نمایش داده می‌شود
+</div>
+
+
+</section>
+
+
+</main>
+
+
+<script src="/assets/js/advisor.js"></script>
+
+
+</body>
+
+</html>
