@@ -1,56 +1,20 @@
-# صندوقچی START HERE
+# Sandoghchi Agent Start Here
 
-این فایل نقطه ورود تمام Agent ها و توسعه‌دهندگان است.
+This document is the entry point for any AI Agent.
 
+Read order:
 
-ترتیب مطالعه:
+1. MASTER_CONTEXT.md
+2. PROJECT_STATE.md
+3. PRODUCT_SPEC.md
+4. ARCHITECTURE.md
+5. API_SPEC.md
+6. DATABASE_SPEC.md
+7. AI_SYSTEM.md
+8. ROADMAP.md
 
+Current branch:
+docs/master-documentation
 
-1.
-MASTER_CONTEXT.md
-
-شناخت کامل محصول
-
-
-2.
-PROJECT_STATE.md
-
-وضعیت فعلی توسعه
-
-
-3.
-PRODUCT_SPEC.md
-
-نیازمندی محصول
-
-
-4.
-ARCHITECTURE.md
-
-معماری سیستم
-
-
-5.
-API_SPEC.md
-
-قرارداد API
-
-
-6.
-USER_WEBAPP.md
-
-وب اپ کاربر
-
-
-7.
-ADMIN_PANEL.md
-
-پنل مدیریت
-
-
-قوانین:
-
-- Core Analysis Engine بازنویسی نشود.
-- SmartRanker مرجع رتبه‌بندی است.
-- UI موتور تحلیل ندارد.
-- Secret داخل Git ممنوع.
+Project:
+Sandoghchi AI Investment Advisor
