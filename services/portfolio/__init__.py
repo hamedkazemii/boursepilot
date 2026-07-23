@@ -1,3 +1,3 @@
-"""Portfolio service (Sprint 6) — placeholder."""
+from services.portfolio.service import PortfolioService
 
-__all__: list[str] = []
+__all__ = ["PortfolioService"]
