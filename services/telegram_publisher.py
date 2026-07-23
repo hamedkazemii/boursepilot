@@ -6,6 +6,7 @@ import logging
 from typing import Any, Optional
 
 from config import settings
+from reports.formatters.human_report import HumanReportFormatter
 from core.preopen.analyzer import PreopenSignal
 from core.scoring.models import FundAssessment
 from services.telegram import TelegramService
@@ -42,62 +43,20 @@ class TelegramPublisher:
         return self.publish_text(text)
 
 
-def format_ranking_telegram(
-    ranked: list[FundAssessment],
-    *,
-    meta: Optional[dict[str, Any]] = None,
-    top_n: int = 12,
-    worst_n: int = 6,
-) -> str:
-    meta = meta or {}
-    product = settings.PRODUCT_NAME
-    generated = meta.get("generated_at") or ""
-    lines = [
-        f"📊 {product} | رنکینگ روزانه صندوق‌ها",
-        f"تعداد بررسی‌شده: {len(ranked)}",
-    ]
-    if generated:
-        lines.append(f"زمان: {generated}")
-    if meta.get("fetch_nav"):
-        lines.append(f"NAV موفق: {meta.get('nav_success', 0)}")
-    lines.append("")
-    lines.append("🏆 برترین‌ها")
+
+def format_ranking_telegram(ranked, meta=None, top_n=10, worst_n=0):
+    funds = []
+
     for a in ranked[:top_n]:
-        chg = f"{a.change_pct:+.2f}%" if a.change_pct is not None else "-"
-        lines.append(
-            f"{a.rank}. {a.symbol} | {a.final_score:.1f} | {a.recommendation_label} | {chg}"
-        )
-        if a.summary_reasons:
-            # کوتاه
-            reason = a.summary_reasons[0]
-            if reason.startswith("امتیاز نهایی"):
-                reason = a.summary_reasons[1] if len(a.summary_reasons) > 1 else reason
-            lines.append(f"   • {reason}")
+        funds.append({
+            "name": getattr(a, "name", None) or getattr(a, "symbol", ""),
+            "symbol": getattr(a, "symbol", ""),
+            "score": round(getattr(a, "final_score", 0), 1),
+            "return_percent": getattr(a, "change_percent", "-"),
+            "nav": getattr(a, "nav", "-"),
+        })
 
-    if ranked:
-        lines.append("")
-        lines.append("⚠️ ضعیف‌ترین‌ها")
-        worst = list(reversed(ranked[-worst_n:])) if worst_n else []
-        for a in worst:
-            lines.append(
-                f"{a.rank}. {a.symbol} | {a.final_score:.1f} | {a.recommendation_label}"
-            )
-
-    # per type best
-    by_type: dict[str, FundAssessment] = {}
-    for a in ranked:
-        if a.fund_type not in by_type:
-            by_type[a.fund_type] = a
-    if by_type:
-        lines.append("")
-        lines.append("📁 برترین هر نوع")
-        for ftype, a in sorted(by_type.items(), key=lambda kv: -kv[1].final_score)[:8]:
-            lines.append(f"• {ftype}: {a.symbol} ({a.final_score:.1f})")
-
-    lines.append("")
-    lines.append("ℹ️ امتیاز بر اساس نقدشوندگی، پیش‌سفارش، پول هوشمند، مومنتوم، حجم و NAV")
-    return "\n".join(lines)
-
+    return HumanReportFormatter().build(funds)
 
 def format_preopen_telegram(signals: list[PreopenSignal], *, top_n: int = 12) -> str:
     lines = [
