@@ -16,7 +16,8 @@ from core.classification.fund_type import classify_fund_type
 from core.preopen.analyzer import PreopenAnalyzer
 from services.discovery.fund_catalog import FundCatalogService
 from services.snapshot.store import SnapshotStore
-from services.telegram_publisher import TelegramPublisher, format_preopen_telegram
+from services.telegram_publisher import (TelegramPublisher,
+                                         format_preopen_telegram)
 
 
 def main() -> int:

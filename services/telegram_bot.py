@@ -23,11 +23,9 @@ from services.providers.exceptions import ProviderError
 from services.providers.factory import get_market_data_provider
 from services.snapshot.store import SnapshotStore
 from services.telegram import TelegramService
-from services.telegram_publisher import (
-    format_fund_telegram,
-    format_preopen_telegram,
-    format_ranking_telegram,
-)
+from services.telegram_publisher import (format_fund_telegram,
+                                         format_preopen_telegram,
+                                         format_ranking_telegram)
 
 logger = logging.getLogger(__name__)
 

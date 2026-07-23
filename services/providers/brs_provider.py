@@ -15,12 +15,10 @@ from typing import Any, Optional
 
 from config import settings
 from services.providers.brs_client import BrsClient
-from services.providers.brs_mapper import (
-    map_nav,
-    map_shareholders,
-    map_symbol_quote,
-)
-from services.providers.exceptions import ProviderHTTPError, ProviderNotFoundError
+from services.providers.brs_mapper import (map_nav, map_shareholders,
+                                           map_symbol_quote)
+from services.providers.exceptions import (ProviderHTTPError,
+                                           ProviderNotFoundError)
 from services.providers.models import NavData, ShareholderRow, SymbolQuote
 from services.providers.textnorm import normalize_symbol
 

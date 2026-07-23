@@ -1,6 +1,6 @@
-import requests
 import re
 
+import requests
 
 URL = "https://old.tsetmc.com/Loader.aspx?ParTree=15131F"
 

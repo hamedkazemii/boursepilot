@@ -1,8 +1,7 @@
 import json
 
-from services.tsetmc_client import TSETMCClient
 from services.fund_classifier import FundClassifier
-
+from services.tsetmc_client import TSETMCClient
 
 INPUT = "data/fund_registry.json"
 

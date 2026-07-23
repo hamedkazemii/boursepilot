@@ -1,10 +1,9 @@
-from services.tsetmc_client import TSETMCClient
-from services.fund_registry import FundRegistry
-from services.fund_classifier import FundClassifier
-from core.market_engine import MarketEngine
 from core.market_analyzer import MarketAnalyzer
+from core.market_engine import MarketEngine
 from core.recommendation import RecommendationEngine
-
+from services.fund_classifier import FundClassifier
+from services.fund_registry import FundRegistry
+from services.tsetmc_client import TSETMCClient
 
 
 class RealMarketScanner:

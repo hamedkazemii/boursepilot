@@ -6,12 +6,11 @@ import json
 import unittest
 from pathlib import Path
 from typing import Any, Optional
-from unittest.mock import MagicMock
 
-from services.providers.brs_provider import BrsProvider
-from services.providers.exceptions import ProviderConfigError, ProviderNotFoundError
-from services.providers.factory import get_market_data_provider
 from services.providers.brs_client import BrsClient
+from services.providers.brs_provider import BrsProvider
+from services.providers.exceptions import (ProviderConfigError,
+                                           ProviderNotFoundError)
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "brs"
 

@@ -1,6 +1,5 @@
 from services.parsers.fund_parser import FundParser
 
-
 raw = {
 
     "name": "دارونو",

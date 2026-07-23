@@ -1,8 +1,6 @@
 
 from core.scanner import MarketScanner
 
-
-
 scanner = MarketScanner()
 
 

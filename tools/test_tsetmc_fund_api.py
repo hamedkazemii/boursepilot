@@ -1,6 +1,5 @@
 import requests
 
-
 urls = [
 
 "https://old.tsetmc.com/Loader.aspx?ParTree=15131",

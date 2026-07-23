@@ -1,7 +1,6 @@
 
 from services.providers.fund_provider import FundProvider
 
-
 provider = FundProvider()
 
 

@@ -1,8 +1,6 @@
 
 import requests
 
-
-
 urls = [
 
     "https://cdn.tsetmc.com/api/Instrument/GetInstrument",

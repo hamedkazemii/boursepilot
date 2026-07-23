@@ -5,8 +5,8 @@ class MarketAnalyzer:
         buy_volume = market["buy_volume"]
         sell_volume = market["sell_volume"]
 
-        buy_orders = market["buy_orders"]
-        sell_orders = market["sell_orders"]
+        market["buy_orders"]
+        market["sell_orders"]
 
         change = market["change_percent"]
 

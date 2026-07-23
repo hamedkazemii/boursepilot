@@ -2,7 +2,6 @@ import json
 
 from services.tsetmc_client import TSETMCClient
 
-
 FILE="data/fund_registry.json"
 
 

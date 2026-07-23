@@ -1,6 +1,6 @@
 import json
-from services.fund_discovery import FundDiscovery
 
+from services.fund_discovery import FundDiscovery
 
 OUTPUT = "data/fund_registry.json"
 

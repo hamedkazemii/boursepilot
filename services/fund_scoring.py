@@ -1,6 +1,5 @@
 import json
 
-
 INPUT="data/fund_scores.json"
 OUTPUT="data/fund_ranking.json"
 

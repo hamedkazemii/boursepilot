@@ -1,7 +1,6 @@
 import json
 from collections import Counter
 
-
 data=json.load(
 open(
 "data/fund_ranking.json",

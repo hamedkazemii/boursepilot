@@ -16,11 +16,9 @@ from urllib.parse import urljoin
 import requests
 
 from config import settings
-from services.providers.exceptions import (
-    ProviderAuthError,
-    ProviderConfigError,
-    ProviderHTTPError,
-)
+from services.providers.exceptions import (ProviderAuthError,
+                                           ProviderConfigError,
+                                           ProviderHTTPError)
 
 logger = logging.getLogger(__name__)
 

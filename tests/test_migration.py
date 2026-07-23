@@ -2,7 +2,6 @@
 
 from core.bpi_engine import BPIEngine
 
-
 engine = BPIEngine()
 
 

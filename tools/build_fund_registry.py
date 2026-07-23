@@ -1,6 +1,5 @@
 from services.fund_registry import FundRegistry
 
-
 registry = FundRegistry()
 
 

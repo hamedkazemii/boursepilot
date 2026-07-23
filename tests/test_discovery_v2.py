@@ -1,6 +1,5 @@
 from services.fund_discovery_v2 import FundDiscoveryV2
 
-
 d=FundDiscoveryV2()
 
 

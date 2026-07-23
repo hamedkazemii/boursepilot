@@ -3,7 +3,6 @@ from services.fund_loader import FundLoader
 from services.tsetmc_client import TSETMCClient
 
 
-
 class FundValidator:
 
 
@@ -67,7 +66,7 @@ class FundValidator:
 
 
 
-            except Exception as e:
+            except Exception:
 
 
                 print(

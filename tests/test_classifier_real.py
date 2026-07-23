@@ -1,6 +1,5 @@
-from services.tsetmc_client import TSETMCClient
 from services.fund_classifier import FundClassifier
-
+from services.tsetmc_client import TSETMCClient
 
 client = TSETMCClient()
 

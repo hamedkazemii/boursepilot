@@ -3,18 +3,15 @@
 from __future__ import annotations
 
 import unittest
-from typing import Any, Optional
 from unittest.mock import MagicMock
 
-from core.scoring.models import FactorScore, FundAssessment
 from core.preopen.analyzer import PreopenSignal
+from core.scoring.models import FactorScore, FundAssessment
 from services.telegram import TelegramService, chunk_text
-from services.telegram_publisher import (
-    TelegramPublisher,
-    format_fund_telegram,
-    format_preopen_telegram,
-    format_ranking_telegram,
-)
+from services.telegram_publisher import (TelegramPublisher,
+                                         format_fund_telegram,
+                                         format_preopen_telegram,
+                                         format_ranking_telegram)
 
 
 def _sample_assessment(symbol: str = "عیار", score: float = 77.0, rank: int = 1) -> FundAssessment:

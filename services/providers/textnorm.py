@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-
 _ARABIC_YE = "\u064a"  # ي
 _PERSIAN_YE = "\u06cc"  # ی
 _ARABIC_KAF = "\u0643"  # ك
