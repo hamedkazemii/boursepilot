@@ -1,54 +1,49 @@
 # صندوقچی Documentation
 
-## معرفی
 
-صندوقچی یک دستیار هوشمند تحلیل صندوق‌های سرمایه‌گذاری ایران است.
+## Start
 
-هدف:
+START_HERE.md
 
-- تحلیل داده بازار
-- رتبه‌بندی هوشمند صندوق‌ها
-- مدیریت پرتفوی
-- مشاوره تخصصی AI
 
-## فلسفه محصول
+## Context
 
-صندوقچی سیگنال فروش نیست.
+MASTER_CONTEXT.md
 
-هدف:
-تصمیم‌گیری بهتر با داده شفاف.
 
-## جریان اصلی
+## Product
 
-Market Data
+PRODUCT_SPEC.md
 
-↓
 
-History Engine
+## Architecture
 
-↓
+ARCHITECTURE.md
 
-Indicators
 
-↓
+## API
 
-SmartRanker
+API_SPEC.md
 
-↓
 
-Analytics
+## UI
 
-↓
+USER_WEBAPP.md
 
-API
+ADMIN_PANEL.md
 
-↓
 
-Web / Telegram / Admin
+## AI
 
-## قوانین
+AI_SYSTEM.md
 
-- تضمین سود ممنوع
-- Secret در Git ممنوع
-- موتور تحلیل موازی ممنوع
-- داده باید دارای source و as_of باشد
+
+## Operations
+
+DEPLOYMENT.md
+
+
+## Rules
+
+AGENT_PROTOCOL.md
+
