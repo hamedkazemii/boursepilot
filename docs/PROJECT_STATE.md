@@ -64,3 +64,17 @@ Added:
 - Health monitoring
 
 
+
+
+## AI Intelligence Layer
+
+Added:
+
+- AI provider abstraction
+- Advisor engine
+- Prompt rules
+- AI memory foundation
+- Portfolio advice API
+- Admin AI controls
+
+

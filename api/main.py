@@ -66,3 +66,11 @@ app.include_router(advisor.router)
 from api.routers import admin
 
 app.include_router(admin.router)
+
+from api.routers import ai
+
+app.include_router(ai.router)
+
+from api.routers import admin_ai
+
+app.include_router(admin_ai.router)
