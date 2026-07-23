@@ -1,77 +1,74 @@
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
-
 <head>
-
 <meta charset="UTF-8">
-
-<title>مدیریت صندوقچی</title>
-
-<link rel="stylesheet" href="/assets/css/admin.css">
-
+<title>صندوقچی - پنل مدیریت</title>
+<link rel="stylesheet" href="assets/css/style.css">
 </head>
-
 
 <body>
 
-
-<header class="header">
-
-<h1>
-داشبورد مدیریت صندوقچی
-</h1>
-
-<a href="pipeline.html">
-Pipeline
-</a>
-
+<header>
+<h1>🧠 صندوقچی Admin</h1>
+<p>مدیریت محصول، تحلیل، انتشار و کیفیت داده</p>
 </header>
 
-
-
-<main>
-
-
-<section class="grid">
-
+<section class="cards">
 
 <div class="card">
-<h3>
-وضعیت سیستم
-</h3>
-
-<div id="health">
-در حال بررسی...
+<h3>Universe</h3>
+<span id="universe">--</span>
 </div>
-
-</div>
-
-
 
 <div class="card">
-
-<h3>
-وضعیت تحلیل
-</h3>
-
-<div id="summary">
--
+<h3>Quality Gate</h3>
+<span id="quality">--</span>
 </div>
 
+<div class="card">
+<h3>Gap</h3>
+<span id="gap">--</span>
 </div>
 
-
+<div class="card">
+<h3>Source</h3>
+<span id="source">--</span>
+</div>
 
 </section>
 
 
-</main>
+<section class="panel">
+
+<h2>Pipeline</h2>
+
+<button>
+اجرای تحلیل روزانه
+</button>
+
+<button>
+Sync History
+</button>
+
+<button>
+انتشار تلگرام
+</button>
+
+</section>
 
 
+<section class="panel">
 
-<script src="/assets/js/dashboard.js"></script>
+<h2>Ranking Preview</h2>
 
+<div id="ranking">
+در انتظار API
+</div>
+
+</section>
+
+
+<script src="assets/js/app.js"></script>
 
 </body>
-
 </html>
