@@ -1,196 +1,57 @@
 # BoursePilot Architecture
 
-
-## Data Flow
-
-
-TSETMC
-
-|
-
-|
-
-Discovery Layer
-
-|
-
-|
-
-Registry
-
-|
-
-|
-
-Market Data Layer
-
-|
-
-|
-
-Analyzer Engine
-
-|
-
-|
-
-Scoring Engine
-
-|
-
-|
-
-Ranking Engine
-
-|
-
-|
-
-Recommendation Engine
-
-|
-
-|
-
-Report
-
-
----
-
-
-# Layers
-
-
-## Discovery Layer
-
-
-مسئول:
-
-کشف نمادها
-
-
-فایل:
-
-services/fund_discovery.py
-
-
-منبع:
-
-TSETMC Search
-
-
----
-
-
-## Registry Layer
-
-
-مسئول:
-
-نگهداری صندوق‌های معتبر
-
-
-فایل:
-
-services/fund_registry.py
-
-
-خروجی:
-
-data/fund_registry.json
-
-
----
-
-
-## Market Data Layer
-
-
-مسئول:
-
-
-دریافت:
-
-
-- قیمت
-- معاملات
-- سفارشات
-- تاریخچه
-
-
-فایل:
-
-services/tsetmc_client.py
-
-
----
-
-
-## Analysis Layer
-
-
-مسئول:
-
-
-تبدیل داده خام به تحلیل
-
-
-فایل‌ها:
-
-
-core/market_engine.py
-
-core/market_analyzer.py
-
-
----
-
-
-## Scoring Layer
-
-
-مسئول:
-
-
-امتیازدهی
-
-
-فایل:
-
-
-core/scoring.py
-
-
----
-
-
-## Ranking Layer
-
-
-مسئول:
-
-
-رتبه‌بندی
-
-
-فایل:
-
-
-core/ranking.py
-
-
----
-
-
-## Reporting
-
-
-مسئول:
-
-
-تولید گزارش
-
-
-reports/
-
-
+## Data Flow (v0.6)
+
+```
+BRS API (AllSymbols / Symbol / Nav)
+        │
+        ▼
+  providers/brs_*
+        │
+        ├──────────────► History Engine ──► SQLite
+        │                 (funds, history, nav, scores, cache)
+        ▼
+  FundCatalog / SnapshotStore (JSON snapshots)
+        │
+        ▼
+  ScoreEngine (factors: liquidity, orderbook, money_flow, momentum, volume, nav)
+        │
+        ▼
+  FundRanker
+        │
+        ├──────────────► daily_scores (SQLite)
+        ▼
+  Analytics (MarketSummary)
+        │
+        ▼
+  Telegram smart report (summary + top cards + worst cards)
+        │
+        ▼
+  Channel / Bot
+```
+
+## Packages
+
+| Path | Role |
+|------|------|
+| `core/database` | SQLite connection + schema |
+| `core/history` | Incremental historical store |
+| `core/analytics` | Market-level summary |
+| `core/scoring` | Multi-factor score |
+| `core/ranking` | Order assessments |
+| `core/pipeline` | Daily rank orchestration |
+| `core/preopen` | Pre-market pressure |
+| `core/indicators` | *(Sprint 2)* technical/risk series |
+| `services/providers` | Market data adapters |
+| `services/telegram` | Send + format + publish |
+| `services/discovery` | Fund catalog |
+| `services/snapshot` | JSON snapshot IO |
+| `workflows` | *(future)* scheduled job entrypoints |
+| `reports` | Text/JSON human reports |
+| `tools` | CLI entrypoints |
+
+## Design rules
+1. هیچ secret در کد hardcode نشود — فقط env / GitHub Secrets
+2. هسته تحلیل به فرمت خام BRS وابسته نباشد — فقط DTOهای `SymbolQuote` / `NavData`
+3. هر Feature: تست + dry-run + commit جدا روی `develop`
+4. گزارش هوشمند = «دانش» نه فقط فهرست رتبه (دلایل قابل توضیح)
