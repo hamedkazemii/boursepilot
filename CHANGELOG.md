@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-07-23 — v0.6.1 (Explain fix + bot buttons)
+
+### Fixed
+- توضیح صندوق‌های **ضعیف** دیگر کپی برترها نیست
+- `core/analytics/explain.py` با kind=`top|worst|neutral`
+- کارت تلگرام: «چرا در برترین‌هاست؟» / «چرا در ضعیف‌هاست؟»
+- `ScoreEngine._summary_reasons` برای امتیاز پایین weakness-first
+- فیلتر premium غیرواقعی در متن توضیح
+- callbackهای منقضی دکمه بدون noise لاگ می‌شوند
+- warmup ربات: پیش‌فرض snapshot-first (سریع)، live با `/refresh`
+
+### Added
+- کیبورد اینلاین منو/گزارش (`services/telegram/keyboards.py`)
+- `services/telegram/rank_loader.py` — live → snapshot → demo
+- `tests/test_explain.py`
+- `docs/PROJECT_PROGRESS.md`
+- ابزارها: `run_button_smoke_test.py`, `send_menu_now.py`, `run_telegram_live_test.py`
+
+---
+
 ## 2026-07-23 — v0.6.0 (History Engine + Smart Telegram Report)
 
 ### Added
@@ -21,12 +41,12 @@
   - `core/analytics/market_summary.py`
 - **Workflows**
   - `daily_rank.yml`, `preopen.yml`
-  - `morning.yml` → history sync + smart rank (دیگر `app.py` خام نیست)
+  - `morning.yml` → history sync + smart rank
 - اسکلت پکیج‌های آینده: `core/indicators/`, `core/ai/`, `services/portfolio/`, `workflows/`
 
 ### Changed
 - `services/telegram/` به پکیج تفکیک شد (`client`, `publisher`, `smart_report`)
-- shim سازگاری: `services.telegram_publisher` و importهای قبلی
+- shim سازگاری: `services.telegram_publisher`
 - `config.py`: `DATABASE_PATH`, `HISTORY_CACHE_TTL_SECONDS`, `TELEGRAM_SMART_REPORT`, `TELEGRAM_TOP_N/WORST_N`
 - رفع import دایره‌ای در `core.scoring` / `core.factors`
 
@@ -40,26 +60,14 @@
 ## 2026-07-22 — v0.5.0 (تلگرام V1 + جاب‌های کانال)
 
 ### Added
-- `services/telegram.py` — ارسال با chunk و retry
-- `services/telegram_publisher.py` — فرمت/ارسال رنکینگ و پیش‌گشایش
-- `services/telegram_bot.py` — دستورهای /rank /worst /preopen /fund /market
-- CLI:
-  - `tools/run_telegram_rank.py`
-  - `tools/run_telegram_preopen.py`
-  - `tools/run_telegram_bot.py`
-- `docs/TELEGRAM.md`
-- `tests/test_telegram.py`
-
-### Secrets
-- `BRS_API_KEY`
-- `TELEGRAM_BOT_TOKEN`
-- `TELEGRAM_CHAT_ID` (کانال)
+- ارسال تلگرام، publisher، bot commands اولیه
+- CLI telegram rank/preopen/bot
+- docs/TELEGRAM.md
+- tests/test_telegram.py
 
 ---
 
 ## 2026-07-22 — v0.4.0 (کشف روزانه + امتیاز + رنکینگ فارسی)
-
-### Added
 - discovery/snapshot/score factors/ranking/preopen CLI
 
 ---
