@@ -1,38 +1,48 @@
 # صندوقچی (BoursePilot)
 ## Project State
 Last Update: 2026-07-23
-Version: 0.6.1
+Version: 0.7.0
 
 # وضعیت
 
 | بخش | وضعیت |
 |-----|--------|
-| BRS API | ✅ |
-| کشف/اسنپ‌شات/رنکینگ فارسی | ✅ |
-| پیش‌گشایش CLI | ✅ |
-| تلگرام ارسال به کانال | ✅ |
-| گزارش هوشمند چندپیامی | ✅ |
-| توضیح جدا top/worst | ✅ |
-| History Engine + SQLite | ✅ |
-| ربات دکمه‌ای (inline) | ✅ |
-| جاب GitHub daily/preopen/morning | ✅ |
-| Indicator Engine | ❌ Sprint 2 |
-| Smart Ranking سری‌زمانی | ❌ Sprint 3 |
-| Market Analyzer پیشرفته | ❌ Sprint 4 |
-| پرتفوی / AI / Realtime | ❌ Sprint 6–8 |
+| BRS live provider | ✅ (در شبکه ایران/VPS) / ⚠️ SSL در sandbox |
+| History SQLite + incremental | ✅ |
+| Indicator Engine | ✅ |
+| Smart relative ranking | ✅ |
+| Top5/Worst5 sanity gap | ✅ |
+| Trend-aware recommendation | ✅ |
+| Smart telegram multi-message | ✅ |
+| Inline bot buttons | ✅ |
+| User profile on /start | ✅ |
+| Portfolio + watchlist | ✅ |
+| AI advisor + daily learning | ✅ |
+| Optional free LLM API | ✅ (env) |
+| Realtime alerts | ❌ next |
+| Compare funds | ❌ next |
 
-# Secrets
-- BRS_API_KEY
-- TELEGRAM_BOT_TOKEN
-- TELEGRAM_CHAT_ID
+# کیفیت رنکینگ (نمونه)
+- universe: 30
+- top5_avg: ~70
+- worst5_avg: ~31
+- gap: ~39
+- sane: true
 
-# Env
+# Secrets / Env
 ```
+BRS_API_KEY
+TELEGRAM_BOT_TOKEN
+TELEGRAM_CHAT_ID
 DATABASE_PATH=data/database.db
-TELEGRAM_SMART_REPORT=true
-TELEGRAM_TOP_N=5
-TELEGRAM_WORST_N=5
+AI_API_URL=   # optional
+AI_API_KEY=   # optional
+AI_MODEL=llama-3.1-8b-instant
 ```
 
-# فاز بعد
-Sprint 2 — Indicator Engine روی `history`
+# Run
+```bash
+python tools/run_daily_analysis.py
+python tools/run_telegram_rank.py --smart
+python tools/run_telegram_bot.py
+```
