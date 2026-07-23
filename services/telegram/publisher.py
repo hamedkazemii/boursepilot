@@ -54,6 +54,7 @@ class TelegramPublisher:
         meta: Optional[dict[str, Any]] = None,
         top_n: int = 5,
         worst_n: int = 5,
+        with_menu: bool = True,
     ) -> bool:
         messages = build_smart_morning_messages(
             ranked,
@@ -66,7 +67,12 @@ class TelegramPublisher:
             len(messages),
             len(ranked),
         )
-        return self.telegram.send_messages(messages)
+        markup = None
+        if with_menu:
+            from services.telegram.keyboards import after_report_keyboard
+
+            markup = after_report_keyboard()
+        return self.telegram.send_messages(messages, reply_markup_last=markup)
 
     def publish_preopen(self, signals: list, *, top_n: int = 12) -> bool:
         text = format_preopen_telegram(signals, top_n=top_n)
