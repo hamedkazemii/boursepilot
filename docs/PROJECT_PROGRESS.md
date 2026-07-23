@@ -1,178 +1,175 @@
-# گزارش جامع روند پروژه صندوقچی (BoursePilot)
+# گزارش جامع پروژه صندوقچی — v0.7.0
 
 **تاریخ:** 2026-07-23  
-**نسخه جاری:** 0.6.1 (در حال تثبیت روی `develop`)  
 **ریپو:** https://github.com/hamedkazemii/boursepilot  
-**PR اصلی v0.6:** https://github.com/hamedkazemii/boursepilot/pull/1
+**شاخه توسعه:** `develop`  
+**PR:** https://github.com/hamedkazemii/boursepilot/pull/1
 
 ---
 
-## 1) هدف محصول
-
-صندوقچی فقط «فهرست رتبه» نیست؛ باید **دستیار هوشمند سرمایه‌گذاری** باشد:
-
-- امروز چند صندوق بررسی شد؟
-- وضعیت و قدرت بازار چیست؟
-- کدام گروه قوی/ضعیف است؟
-- هر صندوق **چرا** برتر یا ضعیف است؟
-- بعداً: پرتفو، هشدار، پیشنهاد تخصیص، realtime
-
----
-
-## 2) آنچه تا امروز ساخته شده
-
-### لایه داده
-| جزء | وضعیت | توضیح |
-|-----|--------|--------|
-| BRS Provider | ✅ | AllSymbols / Symbol / Nav / Shareholders |
-| Fund Catalog + Snapshot | ✅ | JSON روزانه |
-| History Engine + SQLite | ✅ Sprint 1 | funds, history, nav_history, market_snapshot, daily_scores, request_cache |
-| Incremental upsert | ✅ | جلوگیری از duplicate روزانه |
-| Request cache | ✅ | کاهش درخواست تکراری |
-
-### لایه تحلیل/امتیاز
-| جزء | وضعیت | توضیح |
-|-----|--------|--------|
-| Factors (liquidity, orderbook, money_flow, momentum, volume, nav) | ✅ | وزن‌ها در `config/scoring.yaml` |
-| ScoreEngine + FundRanker | ✅ | Final score + recommendation |
-| MarketSummary | ✅ | قدرت بازار، best/worst group |
-| Explain engine (top/worst جدا) | ✅ 0.6.1 | `core/analytics/explain.py` |
-| Indicator Engine (EMA/RSI/...) | ❌ Sprint 2 | اسکلت پکیج هست |
-| Smart Ranking سری‌زمانی | ❌ Sprint 3 | هنوز snapshot-محور است |
-
-### تلگرام
-| جزء | وضعیت | توضیح |
-|-----|--------|--------|
-| ارسال کانال + chunk/retry | ✅ | `services/telegram/client.py` |
-| گزارش هوشمند چندپیامی | ✅ | summary + top cards + worst cards |
-| کیبورد اینلاین | ✅ | menu / after-report / fund actions |
-| ربات long-poll + callback | ✅ | `/today /top /worst /market /gold ...` |
-| Fallback snapshot/demo | ✅ | وقتی BRS از محیط در دسترس نیست |
-| توضیح weak درست (نه کپی top) | ✅ 0.6.1 | اصلاح explain |
-
-### اتوماسیون
-| جزء | وضعیت |
-|-----|--------|
-| `morning.yml` | ✅ history + smart rank |
-| `daily_rank.yml` | ✅ |
-| `preopen.yml` | ✅ |
-| Secrets: BRS / TELEGRAM_* | ✅ (محلی + GitHub) |
-
----
-
-## 3) معماری فعلی (خلاصه)
+## ۱) مسیر صحیح محصول (از این نسخه)
 
 ```
-BRS API
-  → providers
-    → HistoryEngine (SQLite)
-    → Catalog/Snapshot (JSON)
-      → ScoreEngine (factors)
-        → Ranker
-          → MarketSummary + Explain
-            → Telegram smart report / Bot buttons
-```
-
-ساختار هدف‌مند:
-
-```
-core/database | history | analytics | scoring | ranking | pipeline | indicators* | ai*
-services/providers | telegram | discovery | snapshot | portfolio*
-workflows* | reports | tools | tests
+API زنده (BRS)
+   ↓
+ذخیره History هر صندوق (SQLite, incremental)
+   ↓
+Indicator Engine (بازده/EMA/RSI/Sharpe/Drawdown/...)
+   ↓
+Score لحظه‌ای + SmartRank نسبی (صدک بین همه صندوق‌ها)
+   ↓
+۵ برتر واقعی + ۵ ضعیف واقعی + توصیه روندی
+   ↓
+تلگرام / ربات دکمه‌ای
+   ↓
+پروفایل کاربر + پرتفو + واچ‌لیست
+   ↓
+AI Advisor (یادگیری روزانه + پاسخ سوال)
 ```
 
 ---
 
-## 4) مشکلات شناخته‌شده و وضعیت‌شان
+## ۲) مشکل قبلی که حل شد
 
-| مشکل | وضعیت | اقدام |
-|------|--------|--------|
-| توضیح صندوق‌های ضعیف شبیه برترها بود | ✅ رفع شد | `explain_fund(kind=worst/top)` + summary_reasons نقش‌محور |
-| دکمه‌ها بدون polling کار نمی‌کردند | ✅ رفع مفهومی | bot باید همیشه up باشد |
-| BRS از sandbox Gumloop SSL error | ⚠️ محیطی | fallback snapshot؛ روی VPS/ایران باید live شود |
-| `services/telegram.py` قدیمی روی remote ممکن است همزمان با پکیج باشد | ⚠️ | در سینک بعدی پاک/جایگزین شود |
-| NAV premium گاهی outlier (مثلاً -90٪) | ⚠️ جزئی | فیلتر sane در explain؛ mapper/واحد قیمت بعداً |
-| رتبه‌بندی هنوز بیشتر همان‌روز است | ⏳ | Sprint 2–3 |
+| مشکل | قبل | بعد |
+|------|-----|-----|
+| صندوق ضعیف امتیاز بالا | snapshot ۵تایی؛ همه «نسبتاً خوب» | جهان ≥۲۰/۳۰+ و صدک نسبی |
+| توضیح ضعیف = توضیح برتر | summary strength-first | `explain(kind=worst/top)` + reasons نسبی |
+| توصیه فقط لحظه‌ای | change یک‌روزه | trend 20/60d + EMA/RSI/risk |
+| top/worst هم‌پوشان | ممکن بود | hard disjoint + gap sanity |
+| بدون کاربر/پرتفو | ❌ | users/portfolios/watchlist |
+| بدون یادگیری | ❌ | ai_memory + ai_lessons |
 
----
-
-## 5) تصمیم‌های معماری مهم
-
-1. **Feature-based development:** هر قابلیت = تست + dry-run + commit جدا روی `develop`
-2. **Secret فقط env/GitHub Secrets** — هیچ کلید در گیت
-3. **هسته تحلیل به raw BRS وابسته نباشد** — فقط DTO
-4. **گزارش = دانش:** «چرا این رتبه؟» اجباری است
-5. **Telegram UX:** چندپیام هوشمند + دکمه؛ کانال برای broadcast، چت خصوصی برای تعامل
-
----
-
-## 6) مسیر ادامه (اولویت‌بندی)
-
-### همین هفته — تثبیت v0.6.x
-1. Merge PR #1 به main (پس از review)
-2. Deploy ربات روی VPS/systemd (polling دائمی)
-3. یک بار `run_history_sync` + `run_telegram_rank --smart` روی شبکه ایران
-4. پاکسازی فایل‌های legacy و یکدست‌سازی importها
-
-### Sprint 2 — Indicator Engine (اولویت بالا)
-از جدول `history`:
-- بازده 1/5/20/60/90
-- EMA20/50/200, RSI, MACD, ATR, Bollinger
-- Sharpe, Sortino, MaxDD, Volatility
-- میانگین حجم و نسبت حجم امروز/میانگین
-
-خروجی در explain:
-> «حجم امروز 2.3× میانگین ۲۰روزه»  
-> «زیر EMA50 و RSI=32»
-
-### Sprint 3 — Smart Ranking سری‌زمانی
-امتیازهای پایدار:
-Trend / MoneyFlow / Risk / Liquidity / Volume / NAV / Technical / HistoricalReturn / AI Confidence  
-→ Final Score 0..100 با وزن‌های قابل تنظیم
-
-### Sprint 4 — Market Analyzer 08:50
-قدرت گروه، ورود/خروج پول، پیش‌سفارش، بیشترین نقدشوندگی
-
-### Sprint 5 — Telegram Platform کامل
-`/today /top /worst /gold /fixed /stock /search /compare /portfolio /watchlist`
-
-### Sprint 6–8
-Portfolio واقعی → AI Advisor → Realtime alerts
+### سنجه کیفیت اجباری
+```
+top5_avg - worst5_avg > 8
+sane = true
+```
+نمونه اجرا:
+- n=30
+- top5_avg ≈ 69.6
+- worst5_avg ≈ 30.7
+- gap ≈ 38.8
+- sane=True
 
 ---
 
-## 7) معیار آمادگی v1.0
+## ۳) ماژول‌های جدید v0.7
 
-- [ ] تاریخچه ≥ 60 روز معاملاتی برای اکثر صندوق‌ها
-- [ ] اندیکاتورها در explain و score استفاده شوند
-- [ ] گزارش صبحگاهی پایدار روی کانال (CI سبز)
-- [ ] ربات دکمه‌ای 24/7
-- [ ] پرتفو حداقل MVP
-- [ ] تست‌های integration روی داده live (شبکه ایران/VPS)
+### Data / History
+- `core/database/schema.py` → **v2**
+  - `fund_indicators`
+  - `users`, `portfolios`, `portfolio_items`, `watchlist`
+  - `ai_memory`, `ai_lessons`, `chat_messages`
+- `core/history/*` — upsert روزانه + seed هوشمند وقتی تاریخچه کم است
+
+### Indicators
+- `core/indicators/engine.py`
+  - ret 1/5/20/60/90
+  - EMA20/50/200, RSI14, MACD, ATR, Bollinger
+  - Volatility, Sharpe, Sortino, MaxDD
+  - avg volume + volume_ratio
+
+### Smart Ranking
+- `core/ranking/smart_ranker.py`
+  - ترکیب: trend, hist momentum, liquidity, money flow, risk, technical, volume, nav
+  - نرمال‌سازی **percentile** روی کل جهان همان روز
+  - توصیه: خرید قوی / خرید / نگهداری / کاهش / فروش
+
+### Pipeline
+- `core/pipeline/daily_analysis.py`
+- CLI: `tools/run_daily_analysis.py`
+- `tools/run_telegram_rank.py` روی همین پایپلاین
+
+### User platform
+- `services/portfolio/service.py`
+  - ensure_user روی /start
+  - risk/capital/horizon
+  - portfolio add/del + watchlist
+
+### AI
+- `core/ai/advisor.py`
+  - یادگیری روزانه از ranking
+  - پاسخ rule-based قوی
+  - اتصال اختیاری LLM رایگان با:
+    - `AI_API_URL` (OpenAI-compatible)
+    - `AI_API_KEY`
+    - `AI_MODEL` (پیش‌فرض llama-3.1-8b-instant)
 
 ---
 
-## 8) دستورهای کلیدی
+## ۴) دستورهای ربات
+
+### بازار
+`/today` `/top` `/worst` `/market` `/preopen` `/gold` `/fixed` `/stock` `/fund عیار`
+
+### کاربر
+`/start` (ساخت پروفایل)  
+`/profile` `/risk low|medium|high` `/capital 50000000`  
+`/portfolio` `/pf_add عیار 100 25000` `/pf_del عیار`  
+`/watch عیار` `/watchlist`
+
+### مشاور
+`/ask ۵۰ میلیون ریسک کم یک‌ساله`  
+یا متن آزاد در چت خصوصی
+
+---
+
+## ۵) محدودیت محیط فعلی Gumloop
+
+- BRS از این sandbox اغلب **SSL EOF** می‌دهد.
+- پایپلاین خودکار fallback می‌کند:
+  1. live
+  2. snapshot بزرگ
+  3. demo universe + history seed
+- روی **VPS/ایران/GitHub Actions** باید live شود.
+
+برای LLM رایگان پیشنهادی:
+- Groq / OpenRouter / Together (endpoint سازگار با OpenAI)
+```
+AI_API_URL=https://api.groq.com/openai/v1
+AI_API_KEY=...
+AI_MODEL=llama-3.1-8b-instant
+```
+
+---
+
+## ۶) تست‌ها
 
 ```bash
-# تست
-python -m unittest tests.test_explain tests.test_smart_report \
-  tests.test_history_engine tests.test_telegram tests.test_score_engine -v
-
-# تاریخچه
-python tools/run_history_sync.py
-
-# گزارش هوشمند
-python tools/run_telegram_rank.py --no-nav --smart --dry-run
-python tools/run_telegram_rank.py --no-nav --smart
-
-# ربات دکمه‌ای (باید همیشه روشن بماند)
-python tools/run_telegram_bot.py
+python -m unittest \
+  tests.test_smart_ranker \
+  tests.test_daily_analysis \
+  tests.test_portfolio_ai \
+  tests.test_explain \
+  tests.test_smart_report \
+  tests.test_history_engine \
+  tests.test_telegram \
+  tests.test_score_engine -v
 ```
+وضعیت: سبز
 
 ---
 
-## 9) جمع‌بندی یک‌خطی
+## ۷) ادامه مسیر (اولویت)
 
-**از اسکریپت‌های پراکنده به اسکلت محصولی v0.6 رسیدیم:** داده تاریخی SQLite + امتیاز چندعاملی + گزارش هوشمند چندپیامی + ربات دکمه‌ای.  
-**گام بعدی حیاتی:** Indicator Engine روی سری زمانی تا توضیح‌ها و رتبه‌ها واقعاً «هوشمند» شوند، نه فقط snapshot امروز.
+### فوری عملیاتی
+1. Deploy ربات 24/7 روی VPS (`systemd` + `run_telegram_bot.py`)
+2. Cron:
+   - 08:50 preopen
+   - 09:10 / 12:30 / 16:30 `run_daily_analysis` + telegram smart
+3. اتصال AI_API_KEY رایگان
+4. Merge `develop` → `main`
+
+### محصولی بعدی
+1. دریافت history واقعی چندماهه از منبع پایدار (BRS/TSETMC export)
+2. حذف تدریجی seed مصنوعی وقتی bars کافی شد
+3. مقایسه دو صندوق `/compare`
+4. هشدار realtime ورود پول / شکست EMA
+5. گزارش شخصی صبحگاهی برای هر کاربر بر اساس پرتفو
+
+---
+
+## ۸) جمع‌بندی یک خط
+
+**v0.7 صندوقچی را از «لیست امتیاز لحظه‌ای» به «موتور تحلیلی نسبی+روندی با پروفایل کاربر و مشاور یادگیرنده» تبدیل کرد؛ قدم بعدی فقط داده زنده پایدار روی سرور شماست.**
