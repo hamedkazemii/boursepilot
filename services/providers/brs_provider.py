@@ -61,7 +61,32 @@ class BrsProvider:
     def get_fund_symbols(self, symbol_type: Optional[int] = None) -> list[SymbolQuote]:
         """فیلتر صندوق‌مانند (~۴۰۰) از AllSymbols."""
         all_quotes = self.get_all_symbols(symbol_type=symbol_type)
-        funds = [q for q in all_quotes if q.is_fund_like]
+        FUND_WORDS = (
+            "صندوق",
+            "درآمد ثابت",
+            "سهامی",
+            "طلا",
+            "اهرمی",
+            "مختلط",
+            "شاخص",
+            "بخشی",
+            "کالایی",
+            "ETF",
+        )
+
+        funds = []
+
+        for q in all_quotes:
+
+            name = (q.name or "").strip()
+            symbol = (q.symbol or "").strip()
+            sector = (q.sector or "").strip()
+
+            text_all = f"{name} {symbol} {sector}"
+
+            if any(x in text_all for x in FUND_WORDS):
+                funds.append(q)
+
         logger.info("BRS fund-like symbols=%s / total=%s", len(funds), len(all_quotes))
         return funds
 

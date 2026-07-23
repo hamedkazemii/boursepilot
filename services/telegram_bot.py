@@ -75,7 +75,11 @@ class SandoghchiBot:
             self.offset = int(upd["update_id"]) + 1
         return updates
 
-    def handle_update(self, update: dict[str, Any]) -> None:
+    from services.telegram.storage.users import register
+from services.telegram.handlers.start import WELCOME
+
+
+def handle_update(self, update: dict[str, Any]) -> None:
         message = update.get("message") or update.get("channel_post") or {}
         chat = message.get("chat") or {}
         chat_id = str(chat.get("id") or "")
