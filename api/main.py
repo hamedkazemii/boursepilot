@@ -37,3 +37,13 @@ def root():
         "name": "Sandoghchi",
         "status": "running"
     }
+
+
+from api.routers.users import router as users_router
+from api.routers.portfolio import router as portfolio_router
+from api.routers.admin import router as admin_router
+
+app.include_router(users_router)
+app.include_router(portfolio_router)
+app.include_router(admin_router)
+
