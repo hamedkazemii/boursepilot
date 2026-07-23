@@ -40,3 +40,10 @@ test -f docs/PROJECT_STATE.md
 echo "DOCUMENTATION OK"
 
 echo "=== AGENT READY ==="
+
+echo "Running production tests..."
+
+python -m pytest tests/api tests/data -q
+
+echo "TEST SUITE OK"
+
