@@ -47,3 +47,9 @@ app.include_router(users_router)
 app.include_router(portfolio_router)
 app.include_router(admin_router)
 
+
+
+from api.routers.auth import router as auth_router
+
+app.include_router(auth_router)
+
