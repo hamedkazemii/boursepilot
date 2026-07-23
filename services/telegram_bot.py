@@ -1,22 +1,21 @@
-"""ربات دستوری + دکمه‌ای صندوقچی (long polling).
-
-دکمه‌های اینلاین فقط وقتی کار می‌کنند که این پروسه در حال اجرا باشد.
-اگر BRS در دسترس نباشد از snapshot/دمو استفاده می‌شود تا UI نشکند.
-"""
+"""ربات صندوقچی: رنکینگ روندی + پروفایل/پرتفو + مشاور AI."""
 
 from __future__ import annotations
 
 import logging
+import re
 import time
 from typing import Any, Optional
 
 from config import settings
+from core.ai.advisor import AIAdvisor
 from core.analytics.market_summary import build_market_summary
 from core.classification.fund_type import classify_fund_type
 from core.preopen.analyzer import PreopenAnalyzer
 from core.scoring.models import FundAssessment
 from core.scoring.score_engine import ScoreEngine
 from services.discovery.fund_catalog import FundCatalogService
+from services.portfolio.service import PortfolioService
 from services.providers.exceptions import ProviderError
 from services.providers.factory import get_market_data_provider
 from services.snapshot.store import SnapshotStore
@@ -27,9 +26,10 @@ from services.telegram.keyboards import (
     help_text,
     main_menu_keyboard,
 )
-from services.telegram.rank_loader import load_rankings
+from services.telegram.rank_loader import get_cached_payload, load_rankings
 from services.telegram.smart_report import (
     build_smart_morning_messages,
+    format_fund_card,
     format_market_summary_telegram,
     format_top_fund_messages,
     format_worst_fund_messages,
@@ -55,52 +55,43 @@ class SandoghchiBot:
             raise RuntimeError("TELEGRAM_BOT_TOKEN تنظیم نشده است")
         self.poll_timeout = poll_timeout
         self.offset: Optional[int] = None
-        self.provider = None
         try:
             self.provider = get_market_data_provider()
         except Exception as exc:  # noqa: BLE001
             logger.warning("provider init failed: %s", exc)
+            self.provider = None
         self.engine = ScoreEngine()
         self.store = SnapshotStore()
+        self.portfolio = PortfolioService()
+        self.ai = AIAdvisor()
         self._ranked_cache: list[FundAssessment] = []
-        self._ranked_at: float = 0.0
-        self._ranked_source: str = ""
-        self._warming = False
+        self._ranked_at = 0.0
+        self._ranked_source = ""
+        self._awaiting_ask: set[str] = set()
         self.warm_cache = warm_cache
 
-    # ------------------------------------------------------------------ run
     def setup(self) -> dict[str, Any]:
         dropped = self.telegram.api("deleteWebhook", {"drop_pending_updates": False})
         me = self.telegram.get_me()
-        info = {
-            "delete_webhook": bool(dropped.get("ok")),
-            "bot": (me.get("result") or {}),
-        }
-        logger.info(
-            "bot setup ok=@%s webhook_cleared=%s",
-            info["bot"].get("username"),
-            info["delete_webhook"],
-        )
+        info = {"delete_webhook": bool(dropped.get("ok")), "bot": (me.get("result") or {})}
+        logger.info("bot setup @%s", info["bot"].get("username"))
         if self.warm_cache:
             try:
-                ranked = self._get_ranked()
-                logger.info("warm cache source=%s n=%s", self._ranked_source, len(ranked))
+                self._get_ranked()
             except Exception as exc:  # noqa: BLE001
-                logger.warning("warm cache failed: %s", exc)
+                logger.warning("warm failed: %s", exc)
         return info
 
     def run_forever(self) -> None:
         info = self.setup()
-        uname = info.get("bot", {}).get("username", "?")
-        logger.info("bot polling started @%s", uname)
+        logger.info("polling @%s", info.get("bot", {}).get("username"))
         while True:
             try:
                 self._poll_once()
             except KeyboardInterrupt:
-                logger.info("bot stopped by user")
                 raise
             except Exception as exc:  # noqa: BLE001
-                logger.exception("poll loop error: %s", exc)
+                logger.exception("poll error: %s", exc)
                 time.sleep(2)
 
     def _poll_once(self) -> None:
@@ -110,46 +101,54 @@ class SandoghchiBot:
         }
         if self.offset is not None:
             params["offset"] = self.offset
-        old_timeout = self.telegram.timeout
-        self.telegram.timeout = max(old_timeout, float(self.poll_timeout) + 15)
+        old = self.telegram.timeout
+        self.telegram.timeout = max(old, float(self.poll_timeout) + 15)
         try:
             data = self.telegram.api("getUpdates", params)
         finally:
-            self.telegram.timeout = old_timeout
-
+            self.telegram.timeout = old
         if not data.get("ok"):
-            logger.warning("getUpdates failed: %s", str(data)[:300])
             time.sleep(1)
             return
-
         for upd in data.get("result") or []:
             self.offset = int(upd["update_id"]) + 1
             try:
                 self._handle_update(upd)
             except Exception as exc:  # noqa: BLE001
-                logger.exception("handle update failed: %s", exc)
+                logger.exception("update failed: %s", exc)
 
     def _handle_update(self, upd: dict[str, Any]) -> None:
         if "callback_query" in upd:
             self._handle_callback(upd["callback_query"])
             return
-
         msg = upd.get("message") or upd.get("edited_message") or upd.get("channel_post")
         if not msg:
             return
         chat = msg.get("chat") or {}
         chat_id = str(chat.get("id") or "")
         text = (msg.get("text") or "").strip()
+        user = msg.get("from") or {}
+        if chat_id and user:
+            self.portfolio.ensure_user(
+                user.get("id") or chat_id,
+                username=user.get("username") or "",
+                first_name=user.get("first_name") or "",
+                last_name=user.get("last_name") or "",
+            )
         if not chat_id or not text:
             return
-
         if chat.get("type") == "channel" and not text.startswith("/"):
             return
-
         if text.startswith("/"):
-            self._handle_command(chat_id, text)
+            self._handle_command(chat_id, text, user=user)
+            return
+        # free text
+        uid = str(user.get("id") or chat_id)
+        if uid in self._awaiting_ask or chat.get("type") == "private":
+            self._awaiting_ask.discard(uid)
+            self._cmd_ask(chat_id, text, user=user)
         else:
-            self._reply(chat_id, self._cmd_fund(text.split()[0]))
+            self._reply(chat_id, self._cmd_fund(text.split()[0]), reply_markup=fund_actions_keyboard(text.split()[0]))
 
     def _handle_callback(self, cq: dict[str, Any]) -> None:
         cq_id = str(cq.get("id") or "")
@@ -159,50 +158,57 @@ class SandoghchiBot:
         chat_id = str(chat.get("id") or "")
         user = cq.get("from") or {}
         user_id = str(user.get("id") or "")
-
-        # فوراً loading دکمه را ببند
-        self.telegram.answer_callback_query(cq_id, text="⏳ اجرا…")
-
+        self.telegram.answer_callback_query(cq_id, text="⏳")
         target = chat_id or user_id
-        if not target:
-            logger.warning("callback without target data=%s", data)
-            return
-
-        logger.info("callback data=%s chat=%s user=%s", data, chat_id, user_id)
-
-        # اگر از کانال زده شده و کاربر خصوصی دارد، هم به کانال هم خصوصی جواب مفید بده
-        # (کانال برای گزارش عمومی، خصوصی برای تعامل)
+        if user_id:
+            self.portfolio.ensure_user(
+                user_id,
+                username=user.get("username") or "",
+                first_name=user.get("first_name") or "",
+                last_name=user.get("last_name") or "",
+            )
+        logger.info("callback %s chat=%s user=%s", data, chat_id, user_id)
         try:
             if data.startswith("cmd:"):
-                cmd = data.split(":", 1)[1].strip().lower()
-                self._run_command(target, cmd, args="")
-                # اگر کانال بود و user جدا، منوی خصوصی هم بفرست تا دکمه‌ها برایش شخصی کار کند
-                if chat.get("type") == "channel" and user_id and user_id != target:
-                    try:
-                        self._cmd_start(user_id)
-                    except Exception:
-                        pass
+                self._run_command(target, data.split(":", 1)[1], args="", user=user)
             elif data.startswith("fund:"):
-                symbol = data.split(":", 1)[1].strip()
-                text = self._cmd_fund(symbol)
-                self._reply(target, text, reply_markup=fund_actions_keyboard(symbol))
+                sym = data.split(":", 1)[1]
+                self._reply(target, self._cmd_fund(sym), reply_markup=fund_actions_keyboard(sym))
+            elif data.startswith("watch:"):
+                sym = data.split(":", 1)[1]
+                self.portfolio.add_watch(user_id or target, sym)
+                self._reply(target, f"⭐ {sym} به واچ‌لیست اضافه شد.", reply_markup=after_report_keyboard())
+            elif data.startswith("pfadd:"):
+                sym = data.split(":", 1)[1]
+                self._reply(
+                    target,
+                    f"برای افزودن {sym} بفرستید:\n/pf_add {sym} <تعداد> [قیمت‌خرید]",
+                    reply_markup=main_menu_keyboard(),
+                )
             else:
-                self._reply(target, "دکمه ناشناخته. /menu", reply_markup=main_menu_keyboard())
+                self._reply(target, "دکمه ناشناخته", reply_markup=main_menu_keyboard())
         except Exception as exc:  # noqa: BLE001
-            logger.exception("callback handler failed: %s", exc)
+            logger.exception("callback failed: %s", exc)
             self._reply(target, f"خطا: {exc}", reply_markup=main_menu_keyboard())
 
-    def _handle_command(self, chat_id: str, text: str) -> None:
+    def _handle_command(self, chat_id: str, text: str, user: Optional[dict] = None) -> None:
         parts = text.split(maxsplit=1)
         cmd = parts[0].split("@")[0].lstrip("/").lower()
         args = parts[1].strip() if len(parts) > 1 else ""
-        self._run_command(chat_id, cmd, args=args)
+        self._run_command(chat_id, cmd, args=args, user=user or {})
 
-    def _run_command(self, chat_id: str, cmd: str, args: str = "") -> None:
-        logger.info("command /%s chat=%s args=%r", cmd, chat_id, args)
+    def _run_command(self, chat_id: str, cmd: str, args: str = "", user: Optional[dict] = None) -> None:
+        user = user or {}
+        uid = str(user.get("id") or chat_id)
+        logger.info("cmd /%s chat=%s", cmd, chat_id)
         try:
             if cmd in {"start", "menu"}:
-                self._cmd_start(chat_id)
+                self.portfolio.ensure_user(uid, username=user.get("username") or "", first_name=user.get("first_name") or "")
+                self._reply(
+                    chat_id,
+                    f"سلام 👋 به {settings.PRODUCT_NAME} خوش آمدید.\nپروفایل شما ساخته/به‌روز شد.\nاز منو استفاده کنید.",
+                    reply_markup=main_menu_keyboard(),
+                )
             elif cmd == "help":
                 self._reply(chat_id, help_text(), reply_markup=main_menu_keyboard())
             elif cmd == "today":
@@ -213,13 +219,11 @@ class SandoghchiBot:
                 self._send_worst(chat_id)
             elif cmd == "rank":
                 ranked = self._get_ranked()
-                text_out = format_ranking_telegram(ranked, top_n=12, worst_n=6)
-                note = self._source_note()
-                self._reply(chat_id, note + text_out, reply_markup=after_report_keyboard())
-            elif cmd == "preopen":
-                self._send_preopen(chat_id)
+                self._reply(chat_id, self._source_note() + format_ranking_telegram(ranked), reply_markup=after_report_keyboard())
             elif cmd == "market":
                 self._send_market(chat_id)
+            elif cmd == "preopen":
+                self._send_preopen(chat_id)
             elif cmd == "gold":
                 self._send_group(chat_id, "طلا")
             elif cmd == "fixed":
@@ -230,218 +234,243 @@ class SandoghchiBot:
                 self._send_group(chat_id, "اهرم")
             elif cmd == "refresh":
                 self._ranked_cache = []
-                self._ranked_at = 0.0
-                self._reply(chat_id, "کش پاک شد. تلاش برای داده زنده…")
-                self._get_ranked(prefer_live=True)
+                self._ranked_at = 0
+                self._reply(chat_id, "در حال بروزرسانی…")
+                self._get_ranked(force=True)
                 self._send_today(chat_id)
             elif cmd == "fund":
                 if not args:
                     self._reply(chat_id, "مثال: /fund عیار", reply_markup=main_menu_keyboard())
                     return
-                self._reply(
-                    chat_id,
-                    self._cmd_fund(args),
-                    reply_markup=fund_actions_keyboard(args.strip()),
-                )
+                self._reply(chat_id, self._cmd_fund(args), reply_markup=fund_actions_keyboard(args.split()[0]))
+            elif cmd in {"profile", "me"}:
+                self._cmd_profile(chat_id, uid)
+            elif cmd == "risk":
+                val = (args or "medium").split()[0].lower()
+                mapping = {"low": "low", "کم": "low", "medium": "medium", "متوسط": "medium", "high": "high", "زیاد": "high"}
+                rp = mapping.get(val, "medium")
+                self.portfolio.update_profile(uid, risk_profile=rp)
+                self._reply(chat_id, f"ریسک پروفایل = {rp}", reply_markup=main_menu_keyboard())
+            elif cmd == "capital":
+                num = _parse_number(args)
+                if num is None:
+                    self._reply(chat_id, "مثال: /capital 50000000")
+                    return
+                self.portfolio.update_profile(uid, capital=num)
+                self._reply(chat_id, f"سرمایه ثبت شد: {num:,.0f}", reply_markup=main_menu_keyboard())
+            elif cmd in {"portfolio", "pf"}:
+                self._cmd_portfolio(chat_id, uid)
+            elif cmd in {"pf_add", "add"}:
+                self._cmd_pf_add(chat_id, uid, args)
+            elif cmd in {"pf_del", "del"}:
+                if not args:
+                    self._reply(chat_id, "مثال: /pf_del عیار")
+                    return
+                self.portfolio.remove_holding(uid, args.split()[0])
+                self._reply(chat_id, f"حذف شد: {args.split()[0]}", reply_markup=after_report_keyboard())
+            elif cmd == "watch":
+                if not args:
+                    self._reply(chat_id, "مثال: /watch عیار")
+                    return
+                self.portfolio.add_watch(uid, args.split()[0])
+                self._reply(chat_id, f"⭐ {args.split()[0]} اضافه شد", reply_markup=after_report_keyboard())
+            elif cmd in {"watchlist", "watch"}:
+                items = self.portfolio.list_watch(uid)
+                self._reply(chat_id, "⭐ واچ‌لیست:\n" + ("\n".join(f"• {x}" for x in items) if items else "خالی"), reply_markup=main_menu_keyboard())
+            elif cmd in {"ask", "ai", "مشاور"}:
+                if not args:
+                    self._awaiting_ask.add(uid)
+                    self._reply(chat_id, "سوال خود را بفرستید.\nمثال: ۵۰ میلیون ریسک کم یک‌ساله")
+                    return
+                self._cmd_ask(chat_id, args, user=user)
             else:
-                self._reply(
-                    chat_id,
-                    "دستور ناشناخته. از دکمه‌ها یا /menu استفاده کنید.",
-                    reply_markup=main_menu_keyboard(),
-                )
+                self._reply(chat_id, "دستور ناشناخته. /help", reply_markup=main_menu_keyboard())
         except Exception as exc:  # noqa: BLE001
-            logger.exception("command %s failed: %s", cmd, exc)
-            self._reply(chat_id, f"خطا در اجرای دستور: {exc}", reply_markup=main_menu_keyboard())
+            logger.exception("cmd failed: %s", exc)
+            self._reply(chat_id, f"خطا: {exc}", reply_markup=main_menu_keyboard())
 
-    # -------------------------------------------------------------- commands
-    def _cmd_start(self, chat_id: str) -> None:
-        text = (
-            f"سلام 👋 به {settings.PRODUCT_NAME} خوش آمدید.\n"
-            "\n"
-            "دکمه‌های زیر را بزنید.\n"
-            "پیشنهاد: «📊 امروز»\n"
-            "\n"
-            "نکته: برای کارکرد کامل دکمه‌ها، همین ربات باید در حال اجرا باشد."
-        )
-        self._reply(chat_id, text, reply_markup=main_menu_keyboard())
-
+    # ---- sends ----
     def _source_note(self) -> str:
-        if self._ranked_source == "demo":
-            return "⚠️ داده نمایشی (BRS در دسترس نبود)\n\n"
-        if self._ranked_source == "snapshot":
-            return "ℹ️ از آخرین snapshot محلی\n\n"
+        if self._ranked_source == "live":
+            return ""
+        if self._ranked_source in {"offline", "demo", "snapshot"}:
+            return f"ℹ️ منبع داده: {self._ranked_source} (در صورت قطع BRS)\n\n"
         return ""
 
     def _send_today(self, chat_id: str) -> None:
-        self._reply(chat_id, "⏳ در حال محاسبه گزارش هوشمند…")
+        self._reply(chat_id, "⏳ تحلیل روندی همه صندوق‌ها…")
         ranked = self._get_ranked()
-        msgs = build_smart_morning_messages(ranked, top_n=5, worst_n=5)
-        if self._ranked_source in {"demo", "snapshot"}:
+        n = len(ranked)
+        top_n = 5 if n >= 10 else max(1, n // 2)
+        worst_n = 5 if n >= 10 else max(1, n // 2)
+        msgs = build_smart_morning_messages(ranked, meta=get_cached_payload(), top_n=top_n, worst_n=worst_n)
+        if self._source_note():
             msgs[0] = self._source_note() + msgs[0]
-        self.telegram.send_messages(
-            msgs,
-            chat_id=chat_id,
-            reply_markup_last=after_report_keyboard(),
-        )
+        # sanity footer
+        if n >= 10:
+            gap = ranked[0].final_score - ranked[-1].final_score
+            msgs[0] += f"\n\n✅ جهان تحلیل: {n} صندوق | فاصله بهترین تا ضعیف‌ترین: {gap:.1f}"
+        self.telegram.send_messages(msgs, chat_id=chat_id, reply_markup_last=after_report_keyboard())
 
     def _send_top(self, chat_id: str) -> None:
-        self._reply(chat_id, "⏳ برترین‌ها…")
         ranked = self._get_ranked()
         msgs = format_top_fund_messages(ranked, n=5)
-        if not msgs:
-            self._reply(chat_id, "داده‌ای نیست.", reply_markup=main_menu_keyboard())
-            return
-        if self._ranked_source in {"demo", "snapshot"}:
+        if self._source_note() and msgs:
             msgs[0] = self._source_note() + msgs[0]
-        self.telegram.send_messages(
-            msgs,
-            chat_id=chat_id,
-            reply_markup_last=after_report_keyboard(),
-        )
+        self.telegram.send_messages(msgs, chat_id=chat_id, reply_markup_last=after_report_keyboard())
 
     def _send_worst(self, chat_id: str) -> None:
-        self._reply(chat_id, "⏳ ضعیف‌ها…")
         ranked = self._get_ranked()
-        msgs = format_worst_fund_messages(ranked, n=5)
-        if not msgs:
-            self._reply(chat_id, "داده‌ای نیست.", reply_markup=main_menu_keyboard())
-            return
-        self.telegram.send_messages(
-            msgs,
-            chat_id=chat_id,
-            reply_markup_last=after_report_keyboard(),
-        )
+        # ensure true bottom
+        worst = list(reversed(ranked[-5:])) if len(ranked) >= 5 else list(reversed(ranked))
+        msgs = [format_fund_card(a, kind="worst") for a in worst]
+        if self._source_note() and msgs:
+            msgs[0] = self._source_note() + msgs[0]
+        # hard check scores
+        if ranked and worst and worst[0].final_score > ranked[0].final_score:
+            self._reply(chat_id, "خطای منطقی رتبه‌بندی شناسایی شد؛ در حال بازسازی…")
+            self._ranked_cache = []
+            ranked = self._get_ranked(force=True)
+            worst = list(reversed(ranked[-5:]))
+            msgs = [format_fund_card(a, kind="worst") for a in worst]
+        self.telegram.send_messages(msgs, chat_id=chat_id, reply_markup_last=after_report_keyboard())
 
     def _send_market(self, chat_id: str) -> None:
         ranked = self._get_ranked()
-        text = self._source_note() + format_market_summary_telegram(ranked)
-        self._reply(chat_id, text, reply_markup=after_report_keyboard())
+        self._reply(chat_id, self._source_note() + format_market_summary_telegram(ranked, meta=get_cached_payload()), reply_markup=after_report_keyboard())
 
     def _send_preopen(self, chat_id: str) -> None:
-        self._reply(chat_id, "⏳ اسکن پیش‌گشایش…")
         try:
-            if self.provider is None:
-                raise RuntimeError("provider unavailable")
+            if not self.provider:
+                raise RuntimeError("provider offline")
             funds = FundCatalogService(provider=self.provider, store=self.store).discover()
             types = {q.symbol: classify_fund_type(q) for q in funds}
             signals = PreopenAnalyzer().rank(funds, fund_types=types)
             text = format_preopen_telegram(signals)
         except Exception as exc:  # noqa: BLE001
-            logger.warning("preopen failed: %s", exc)
-            text = (
-                "⚠️ پیش‌گشایش الان در دسترس نیست (داده زنده BRS).\n"
-                f"جزئیات: {exc}\n"
-                "از /today یا /market استفاده کنید."
-            )
+            text = f"پیش‌گشایش در دسترس نیست: {exc}"
         self._reply(chat_id, text, reply_markup=after_report_keyboard())
 
     def _send_group(self, chat_id: str, fund_type: str) -> None:
-        ranked = self._get_ranked()
-        items = [a for a in ranked if fund_type in (a.fund_type or "")]
-        if not items:
-            self._reply(
-                chat_id,
-                f"صندوقی در گروه «{fund_type}» پیدا نشد.",
-                reply_markup=main_menu_keyboard(),
-            )
+        ranked = [a for a in self._get_ranked() if fund_type in (a.fund_type or "")]
+        if not ranked:
+            self._reply(chat_id, f"گروه {fund_type} یافت نشد", reply_markup=main_menu_keyboard())
             return
-        lines = [
-            self._source_note().rstrip(),
-            f"📁 {settings.PRODUCT_NAME} | گروه {fund_type}",
-            f"تعداد: {len(items)}",
-            "",
-            "🏆 برترین‌های گروه",
-        ]
-        for a in items[:8]:
-            chg = f"{a.change_pct:+.2f}%" if a.change_pct is not None else "-"
-            lines.append(
-                f"{a.rank}. {a.symbol} | {a.final_score:.1f} | {a.recommendation_label} | {chg}"
-            )
-        self._reply(chat_id, "\n".join([x for x in lines if x is not None]), reply_markup=after_report_keyboard())
+        lines = [f"📁 گروه {fund_type} | n={len(ranked)}", "🏆 برتر گروه:"]
+        for a in ranked[:5]:
+            lines.append(f"{a.rank}. {a.symbol} | {a.final_score:.1f} | {a.recommendation_label}")
+        lines.append("⚠️ ضعیف گروه:")
+        for a in list(reversed(ranked[-3:])):
+            lines.append(f"{a.rank}. {a.symbol} | {a.final_score:.1f} | {a.recommendation_label}")
+        self._reply(chat_id, "\n".join(lines), reply_markup=after_report_keyboard())
 
     def _cmd_fund(self, symbol: str) -> str:
-        symbol = (symbol or "").strip()
-        if not symbol:
-            return "نماد خالی است. مثال: /fund عیار"
-
-        # اول از کش رنکینگ
+        symbol = symbol.strip()
         ranked = self._get_ranked()
         for a in ranked:
-            if a.symbol == symbol or symbol in a.symbol or symbol in a.name:
+            if a.symbol == symbol or symbol in a.symbol or symbol in (a.name or ""):
                 return format_fund_telegram(a)
+        if self.provider:
+            try:
+                q = self.provider.get_symbol(symbol)
+                nav = None
+                try:
+                    nav = self.provider.get_nav(symbol)
+                except ProviderError:
+                    pass
+                return format_fund_telegram(self.engine.assess(q, nav=nav))
+            except Exception as exc:  # noqa: BLE001
+                return f"خطا: {exc}"
+        return f"نماد {symbol} پیدا نشد"
 
-        if self.provider is None:
-            return f"نماد «{symbol}» در کش نیست و provider در دسترس نیست."
+    def _cmd_profile(self, chat_id: str, uid: str) -> None:
+        u = self.portfolio.ensure_user(uid)
+        text = (
+            "👤 پروفایل شما\n"
+            f"شناسه: {u.get('telegram_id')}\n"
+            f"نام: {u.get('first_name') or ''} {u.get('last_name') or ''}\n"
+            f"ریسک: {u.get('risk_profile')}\n"
+            f"افق: {u.get('horizon_months')} ماه\n"
+            f"سرمایه: {float(u.get('capital') or 0):,.0f}\n\n"
+            "تنظیم:\n/risk low|medium|high\n/capital 50000000"
+        )
+        self._reply(chat_id, text, reply_markup=main_menu_keyboard())
 
+    def _cmd_portfolio(self, chat_id: str, uid: str) -> None:
+        ranked = self._get_ranked()
+        prices = {a.symbol: float(a.last_price or a.close_price or 0) for a in ranked if a.last_price or a.close_price}
+        text = self.portfolio.portfolio_summary_text(uid, prices=prices)
+        self._reply(chat_id, text, reply_markup=after_report_keyboard())
+
+    def _cmd_pf_add(self, chat_id: str, uid: str, args: str) -> None:
+        parts = args.split()
+        if len(parts) < 2:
+            self._reply(chat_id, "مثال: /pf_add عیار 100 25000")
+            return
+        sym = parts[0]
+        qty = _parse_number(parts[1])
+        cost = _parse_number(parts[2]) if len(parts) > 2 else None
+        if qty is None:
+            self._reply(chat_id, "تعداد نامعتبر است")
+            return
+        self.portfolio.upsert_holding(uid, sym, quantity=qty, avg_cost=cost)
+        self._reply(chat_id, f"✅ {sym} ثبت شد (qty={qty})", reply_markup=after_report_keyboard())
+
+    def _cmd_ask(self, chat_id: str, question: str, user: Optional[dict] = None) -> None:
+        uid = str((user or {}).get("id") or chat_id)
+        u = self.portfolio.ensure_user(uid)
+        ranked = self._get_ranked()
+        pf = self.portfolio.portfolio_summary_text(uid)
+        ans = self.ai.answer(question, user=u, ranked=ranked, portfolio_text=pf)
+        # store chat
         try:
-            quote = self.provider.get_symbol(symbol)
-        except ProviderError as exc:
-            return f"خطا در دریافت نماد {symbol}: {exc}"
-        nav = None
-        try:
-            nav = self.provider.get_nav(quote.symbol)
-        except ProviderError:
-            nav = None
-        assessment = self.engine.assess(quote, nav=nav)
-        return format_fund_telegram(assessment)
-
-    # ---------------------------------------------------------------- helpers
-    def _reply(
-        self,
-        chat_id: str,
-        text: str,
-        *,
-        reply_markup: Optional[dict[str, Any]] = None,
-    ) -> None:
-        ok = self.telegram.send_message(text, chat_id=str(chat_id), reply_markup=reply_markup)
-        if not ok:
-            logger.error("reply failed chat=%s chars=%s", chat_id, len(text or ""))
-
-    def _get_ranked(self, max_age_sec: float = 1800, prefer_live: bool | None = None) -> list[FundAssessment]:
-        import os
-
-        now = time.time()
-        if self._ranked_cache and (now - self._ranked_at) < max_age_sec:
-            return self._ranked_cache
-        if self._warming:
-            while self._warming:
-                time.sleep(0.15)
-            if self._ranked_cache:
-                return self._ranked_cache
-
-        # پیش‌فرض: اول snapshot (سریع) — live فقط با refresh یا prefer_live
-        if prefer_live is None:
-            prefer_live = os.getenv("BOT_PREFER_LIVE", "").lower() in {"1", "true", "yes"}
-
-        self._warming = True
-        try:
-            ranked, source = load_rankings(
-                provider=self.provider if prefer_live else None,
-                store=self.store,
-                engine=self.engine,
-                allow_live=bool(prefer_live and self.provider is not None),
-                allow_demo=True,
-            )
-            # اگر snapshot خالی بود و provider داریم، live را یک‌بار امتحان کن
-            if not ranked and self.provider is not None:
-                ranked, source = load_rankings(
-                    provider=self.provider,
-                    store=self.store,
-                    engine=self.engine,
-                    allow_live=True,
-                    allow_demo=True,
+            from core.database.connection import get_database
+            db = get_database()
+            now = time.strftime("%Y-%m-%dT%H:%M:%S")
+            with db.transaction() as conn:
+                conn.execute(
+                    "INSERT INTO chat_messages(user_id, telegram_id, role, content, created_at) VALUES (?,?,?,?,?)",
+                    (u["id"], uid, "user", question, now),
                 )
-            self._ranked_cache = ranked
-            self._ranked_source = source
-            self._ranked_at = time.time()
-            summary = build_market_summary(ranked)
-            logger.info(
-                "ranked ready source=%s n=%s power=%s best=%s",
-                source,
-                summary.funds_count,
-                summary.market_power,
-                summary.best_group,
-            )
-            return ranked
-        finally:
-            self._warming = False
+                conn.execute(
+                    "INSERT INTO chat_messages(user_id, telegram_id, role, content, created_at) VALUES (?,?,?,?,?)",
+                    (u["id"], uid, "assistant", ans, now),
+                )
+        except Exception:
+            pass
+        self._reply(chat_id, ans, reply_markup=after_report_keyboard())
+
+    def _reply(self, chat_id: str, text: str, *, reply_markup: Optional[dict[str, Any]] = None) -> None:
+        self.telegram.send_message(text, chat_id=str(chat_id), reply_markup=reply_markup)
+
+    def _get_ranked(self, force: bool = False, max_age_sec: float = 900) -> list[FundAssessment]:
+        now = time.time()
+        if not force and self._ranked_cache and (now - self._ranked_at) < max_age_sec:
+            return self._ranked_cache
+        ranked, source = load_rankings(provider=self.provider, allow_live=True, allow_demo=True)
+        # sanity: top score must exceed worst
+        if len(ranked) >= 5 and ranked[0].final_score <= ranked[-1].final_score:
+            logger.error("ranking sanity failed; rebuilding offline")
+            ranked, source = load_rankings(provider=None, allow_live=False, allow_demo=True)
+        self._ranked_cache = ranked
+        self._ranked_source = source
+        self._ranked_at = now
+        # learn
+        try:
+            self.ai.learn_from_ranking(ranked, market=(get_cached_payload() or {}).get("market"))
+        except Exception:
+            pass
+        summary = build_market_summary(ranked)
+        logger.info("ranked source=%s n=%s power=%s best=%s top=%.1f worst=%.1f", source, len(ranked), summary.market_power, summary.best_group, ranked[0].final_score if ranked else -1, ranked[-1].final_score if ranked else -1)
+        return ranked
+
+
+def _parse_number(text: str) -> Optional[float]:
+    if not text:
+        return None
+    t = text.replace(",", "").replace("٬", "").replace("میلیون", "e6").replace("میلیارد", "e9").strip()
+    t = re.sub(r"[^0-9eE.+-]", "", t)
+    try:
+        return float(t)
+    except Exception:
+        return None
