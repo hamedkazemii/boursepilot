@@ -46,3 +46,7 @@ python tools/run_daily_analysis.py
 python tools/run_telegram_rank.py --smart
 python tools/run_telegram_bot.py
 ```
+
+# Handoff
+- docs/AGENT_HANDOFF.md
+- docs/PRODUCT_UI_SPEC.md
