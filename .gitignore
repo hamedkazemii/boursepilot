@@ -13,3 +13,4 @@ data/snapshots/
 
 # macOS
 .DS_Store
+.venv/
