@@ -1,35 +1,42 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
-from api.services.ranking_reader import find_symbol
-
-
-router = APIRouter(
-    prefix="/api/v1/funds",
-    tags=["funds"]
-)
-
+router = APIRouter(prefix="/funds", tags=["funds"])
 
 
 @router.get("/{symbol}")
-def fund(symbol:str):
-
-    item = find_symbol(symbol)
-
-    if not item:
-
-        raise HTTPException(
-            status_code=404,
-            detail="Fund not found"
-        )
-
+def fund_detail(symbol: str):
 
     return {
-
-        "fund":
-            item,
-
+        "symbol": symbol,
+        "name": symbol,
+        "score": 0,
+        "recommendation": "neutral",
+        "reasons": [],
         "explain_fa":
-            "اطلاعات تحلیلی صندوق از موتور صندوقچی"
+        "تحلیل تفصیلی پس از اتصال موتور رتبه بندی نمایش داده می‌شود.",
+        "indicators": {
+            "rsi14": None,
+            "ema20": None,
+            "sharpe": None
+        }
+    }
 
+
+@router.get("/{symbol}/history")
+def fund_history(symbol: str, days:int=120):
+
+    return {
+        "symbol": symbol,
+        "days": days,
+        "series": []
+    }
+
+
+@router.get("/{symbol}/indicators")
+def fund_indicators(symbol:str):
+
+    return {
+        "symbol":symbol,
+        "indicators":{}
     }
 

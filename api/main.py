@@ -1,3 +1,6 @@
+from api.routers import advisor
+from api.routers import portfolio
+from api.routers import funds
 from fastapi import FastAPI
 
 from api.routers import health, market, ranking, funds
@@ -53,3 +56,9 @@ from api.routers.auth import router as auth_router
 
 app.include_router(auth_router)
 
+
+app.include_router(funds.router)
+
+app.include_router(portfolio.router)
+
+app.include_router(advisor.router)

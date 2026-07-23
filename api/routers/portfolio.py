@@ -1,68 +1,43 @@
 from fastapi import APIRouter
 
-from api.services.user_repository import (
-    ensure_user,
-    get_portfolio,
-    add_item,
-    delete_item
-)
+router=APIRouter(prefix="/me/portfolio",tags=["portfolio"])
 
 
-router = APIRouter(
-    prefix="/api/v1",
-    tags=["portfolio"]
-)
+portfolio=[]
 
 
-
-@router.get("/me/portfolio")
-def portfolio():
-
-    user = ensure_user()
+@router.get("")
+def get_portfolio():
 
     return {
-        "user": user,
-        "items":
-            get_portfolio(
-                user["id"]
-            )
+        "items":portfolio
     }
 
 
 
-@router.post("/me/portfolio/items")
-def create_item(item:dict):
+@router.post("")
+def add_item(item:dict):
 
-    user = ensure_user()
-
-
-    add_item(
-        user["id"],
-        item.get("symbol"),
-        item.get("units",0),
-        item.get("avg_price",0)
-    )
-
+    portfolio.append(item)
 
     return {
-        "success":True
+        "status":"ok",
+        "item":item
     }
 
 
 
-@router.delete("/me/portfolio/items/{symbol}")
-def remove(symbol:str):
+@router.delete("/{symbol}")
+def delete_item(symbol:str):
 
-    user=ensure_user()
+    global portfolio
 
-
-    delete_item(
-        user["id"],
-        symbol
-    )
-
+    portfolio=[
+        x for x in portfolio
+        if x.get("symbol")!=symbol
+    ]
 
     return {
-        "success":True
+        "status":"deleted"
     }
 
