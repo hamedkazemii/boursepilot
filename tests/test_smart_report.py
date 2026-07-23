@@ -16,6 +16,9 @@ from services.telegram.smart_report import (
 
 
 def _a(symbol: str, score: float, rank: int, ftype: str = "طلا", chg: float = 1.0) -> FundAssessment:
+    strong = score >= 65
+    liq = 82.0 if strong else 38.0
+    mom = 78.0 if strong else 28.0
     return FundAssessment(
         symbol=symbol,
         name=f"صندوق {symbol}",
@@ -23,21 +26,37 @@ def _a(symbol: str, score: float, rank: int, ftype: str = "طلا", chg: float =
         ins_code=str(rank),
         sector="صندوق",
         final_score=score,
-        recommendation="buy" if score >= 65 else "sell",
-        recommendation_label="خرید" if score >= 65 else "فروش",
+        recommendation="buy" if strong else "sell",
+        recommendation_label="خرید" if strong else "فروش",
         rank=rank,
         factors=(
-            FactorScore("liquidity", "نقدشوندگی", 70, "خوب", ("عمق مناسب است",)),
-            FactorScore("momentum", "مومنتوم", 75, "قوی", ("روند مثبت",)),
+            FactorScore(
+                "liquidity",
+                "نقدشوندگی",
+                liq,
+                "خوب" if strong else "ضعیف",
+                ("عمق مناسب است" if strong else "عمق و ارزش معاملات ضعیف است",),
+            ),
+            FactorScore(
+                "momentum",
+                "مومنتوم",
+                mom,
+                "قوی" if strong else "منفی",
+                ("روند مثبت" if strong else "روند روزانه منفی",),
+            ),
         ),
         summary_reasons=(
-            f"امتیاز نهایی {score:.1f} → توصیه: خرید",
-            "نقطه قوت — نقدشوندگی: عمق مناسب است",
+            f"امتیاز نهایی {score:.1f} → توصیه: {'خرید' if strong else 'فروش'}",
+            (
+                "نقطه قوت — نقدشوندگی: عمق مناسب است"
+                if strong
+                else "نقطه ضعف — مومنتوم: روند روزانه منفی"
+            ),
         ),
         change_pct=chg,
         volume=1_000_000,
         value=2e10,
-        premium_pct=-0.3,
+        premium_pct=-0.3 if strong else 1.2,
     )
 
 
@@ -71,9 +90,11 @@ class TestSmartReport(unittest.TestCase):
         self.assertEqual(len(tops), 5)
         self.assertEqual(len(worst), 5)
         self.assertIn("عیار", tops[0])
-        self.assertIn("چرا این رتبه", tops[0])
+        self.assertIn("چرا در برترین‌هاست", tops[0])
         self.assertIn("صندوق برتر", tops[0])
         self.assertIn("صندوق ضعیف", worst[0])
+        self.assertIn("چرا در ضعیف‌هاست", worst[0])
+        self.assertIn("نقطه ضعف", worst[0])
 
     def test_build_smart_morning_message_count(self) -> None:
         msgs = build_smart_morning_messages(self.ranked, top_n=5, worst_n=5)

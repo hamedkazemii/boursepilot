@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""اجرای long-polling ربات دستوری صندوقچی."""
+"""اجرای long-polling ربات دستوری/دکمه‌ای صندوقچی."""
 
 from __future__ import annotations
 
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -19,7 +20,8 @@ def main() -> int:
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
-    bot = SandoghchiBot()
+    logging.getLogger(__name__).info("starting bot pid=%s", os.getpid())
+    bot = SandoghchiBot(warm_cache=True)
     bot.run_forever()
     return 0
 
