@@ -6,3 +6,10 @@ data/database.db
 data/database.db-*
 *.db-journal
 .pytest_cache/
+
+# Runtime generated data
+data/snapshots/
+reports/
+
+# Local logs
+*.log
