@@ -1,4 +1,4 @@
-"""فرمت گزارش هوشمند چندپیامی تلگرام (فاز ۴).
+"""فرمت گزارش هوشمند چندپیامی تلگرام.
 
 ساختار:
 1) یک پیام خلاصه بازار
@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from config import settings
+from core.analytics.explain import explain_fund
 from core.analytics.market_summary import MarketSummary, build_market_summary
 from core.scoring.models import FundAssessment
 
@@ -44,7 +45,6 @@ def format_market_summary_telegram(
     lines.append(f"بهترین گروه: {summary.best_group}")
     lines.append(f"ضعیف‌ترین گروه: {summary.worst_group}")
 
-    # top groups by strength
     groups = sorted(
         summary.group_stats.items(),
         key=lambda kv: kv[1].get("strength") or 0,
@@ -76,10 +76,7 @@ def format_top_fund_messages(
     *,
     n: int = 5,
 ) -> list[str]:
-    messages: list[str] = []
-    for a in ranked[: max(0, n)]:
-        messages.append(_format_fund_card(a, kind="top"))
-    return messages
+    return [_format_fund_card(a, kind="top") for a in ranked[: max(0, n)]]
 
 
 def format_worst_fund_messages(
@@ -100,7 +97,6 @@ def build_smart_morning_messages(
     top_n: int = 5,
     worst_n: int = 5,
 ) -> list[str]:
-    """لیست کامل پیام‌های صبحگاهی هوشمند."""
     meta = meta or {}
     summary = build_market_summary(
         ranked,
@@ -116,8 +112,10 @@ def _format_fund_card(a: FundAssessment, *, kind: str) -> str:
     product = settings.PRODUCT_NAME
     if kind == "top":
         header = f"🏆 {product} | صندوق برتر #{a.rank or '-'}"
+        why = "چرا در برترین‌هاست؟"
     else:
         header = f"⚠️ {product} | صندوق ضعیف #{a.rank or '-'}"
+        why = "چرا در ضعیف‌هاست؟"
 
     chg = f"{a.change_pct:+.2f}%" if a.change_pct is not None else "-"
     lines = [
@@ -133,59 +131,28 @@ def _format_fund_card(a: FundAssessment, *, kind: str) -> str:
         lines.append(f"حجم: {_fmt_int(a.volume)}")
     if a.value is not None:
         lines.append(f"ارزش معاملات: {_fmt_int(a.value)}")
-    if a.premium_pct is not None:
+    if a.premium_pct is not None and -25 <= float(a.premium_pct) <= 25:
         lines.append(f"حباب/تخفیف NAV: {a.premium_pct:+.2f}%")
 
     lines.append("")
-    lines.append("چرا این رتبه؟")
-    reasons = _smart_reasons(a)
-    for r in reasons[:6]:
+    lines.append(why)
+    for r in explain_fund(a, kind="top" if kind == "top" else "worst", max_items=6):
         lines.append(f"• {r}")
 
-    # factor breakdown compact
+    # فاکتورها: برای weak از ضعیف به قوی، برای top از قوی به ضعیف
     if a.factors:
         lines.append("")
         lines.append("جزئیات فاکتورها:")
-        for f in a.factors:
-            lines.append(f"• {f.title}: {f.score:.0f} ({f.label})")
+        ordered = sorted(
+            a.factors,
+            key=lambda f: f.score,
+            reverse=(kind == "top"),
+        )
+        for f in ordered:
+            mark = "🟢" if f.score >= 65 else "🔴" if f.score <= 45 else "🟡"
+            lines.append(f"{mark} {f.title}: {f.score:.0f} ({f.label})")
 
     return "\n".join(lines)
-
-
-def _smart_reasons(a: FundAssessment) -> list[str]:
-    """ترکیب summary_reasons و reasons فاکتورها — بدون تکرار عنوان امتیاز نهایی."""
-    out: list[str] = []
-    seen: set[str] = set()
-
-    def add(text: str) -> None:
-        t = (text or "").strip()
-        if not t or t in seen:
-            return
-        if t.startswith("امتیاز نهایی"):
-            return
-        seen.add(t)
-        out.append(t)
-
-    for r in a.summary_reasons:
-        add(r)
-    for f in a.factors:
-        for r in f.reasons:
-            add(f"{f.title}: {r}")
-        if not f.reasons and f.label:
-            add(f"{f.title}: {f.label} ({f.score:.0f})")
-
-    if a.change_pct is not None and a.change_pct >= 1.5:
-        add(f"بازده امروز قوی بوده است ({a.change_pct:+.2f}%).")
-    if a.change_pct is not None and a.change_pct <= -1.5:
-        add(f"فشار فروش امروز قابل توجه است ({a.change_pct:+.2f}%).")
-    if a.premium_pct is not None and a.premium_pct <= -0.5:
-        add(f"با تخفیف نسبت به NAV معامله می‌شود ({a.premium_pct:.2f}%).")
-    if a.premium_pct is not None and a.premium_pct >= 1.0:
-        add(f"حباب NAV نسبتاً بالاست ({a.premium_pct:.2f}%).")
-
-    if not out:
-        out.append("بر اساس ترکیب نقدشوندگی، جریان پول و مومنتوم امتیازدهی شده است.")
-    return out
 
 
 def _fmt_num(v: Any) -> str:

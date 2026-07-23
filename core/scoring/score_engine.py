@@ -125,17 +125,49 @@ class ScoreEngine:
         return key, label
 
     def _summary_reasons(self, factors: list[FactorScore], final: float, rec_label: str) -> list[str]:
-        ordered = sorted(factors, key=lambda f: f.score, reverse=True)
-        top = [f for f in ordered if f.score >= 65][:2]
-        weak = [f for f in ordered if f.score <= 35][:2]
-        reasons = [f"امتیاز نهایی {final:.1f} → توصیه: {rec_label}"]
-        for f in top:
-            if f.reasons:
-                reasons.append(f"نقطه قوت — {f.title}: {f.reasons[0]}")
-        for f in weak:
-            if f.reasons:
-                reasons.append(f"نقطه ضعف — {f.title}: {f.reasons[0]}")
-        # always include best single reason from top factor
-        if ordered and ordered[0].reasons and len(reasons) < 2:
-            reasons.append(ordered[0].reasons[0])
-        return reasons[:5]
+        """دلایل متوازن: برای امتیاز پایین اول ضعف‌ها، برای بالا اول قوت‌ها."""
+        ordered_desc = sorted(factors, key=lambda f: f.score, reverse=True)
+        ordered_asc = sorted(factors, key=lambda f: f.score)
+        strong = [f for f in ordered_desc if f.score >= 65]
+        weak = [f for f in ordered_asc if f.score <= 45]
+
+        reasons: list[str] = [f"امتیاز نهایی {final:.1f} → توصیه: {rec_label}"]
+
+        # آستانه نقش: زیر 50 بیشتر ضعف‌محور
+        weakness_first = final < 55 or rec_label in {
+            self.labels.get("weak", "ضعیف"),
+            self.labels.get("sell", "فروش"),
+        }
+
+        def line(f: FactorScore, tone: str) -> str:
+            detail = f.reasons[0] if f.reasons else f.label or f"{f.score:.0f}"
+            if tone == "strong":
+                return f"نقطه قوت — {f.title}: {detail}"
+            if tone == "weak":
+                return f"نقطه ضعف — {f.title}: {detail}"
+            return f"{f.title}: {detail}"
+
+        if weakness_first:
+            for f in weak[:3]:
+                reasons.append(line(f, "weak"))
+            for f in strong[:1]:
+                reasons.append(line(f, "strong"))
+            if len(reasons) < 3:
+                for f in ordered_asc[:2]:
+                    reasons.append(line(f, "weak" if f.score <= 55 else "neutral"))
+        else:
+            for f in strong[:3]:
+                reasons.append(line(f, "strong"))
+            for f in weak[:1]:
+                reasons.append(line(f, "weak"))
+            if len(reasons) < 3 and ordered_desc:
+                reasons.append(line(ordered_desc[0], "strong"))
+
+        # unique preserve order
+        out: list[str] = []
+        seen: set[str] = set()
+        for r in reasons:
+            if r not in seen:
+                seen.add(r)
+                out.append(r)
+        return out[:5]
