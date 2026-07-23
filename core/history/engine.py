@@ -19,6 +19,8 @@ from services.providers.models import SymbolQuote
 
 logger = logging.getLogger(__name__)
 
+_PROVIDER_UNSET = object()
+
 
 class HistoryEngine:
     """
@@ -33,12 +35,23 @@ class HistoryEngine:
     def __init__(
         self,
         db: Optional[Database] = None,
-        provider: Optional[MarketDataProvider] = None,
+        provider: Any = _PROVIDER_UNSET,
         repo: Optional[HistoryRepository] = None,
         cache_ttl_seconds: Optional[int] = None,
     ) -> None:
         self.db = db or get_database()
-        self.provider = provider or get_market_data_provider()
+        # provider:
+        # - omitted => try live factory
+        # - explicit None => offline mode
+        # - instance => use it
+        if provider is _PROVIDER_UNSET:
+            try:
+                self.provider = get_market_data_provider()
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("history engine provider unavailable: %s", exc)
+                self.provider = None
+        else:
+            self.provider = provider
         self.repo = repo or HistoryRepository(self.db)
         self.cache_ttl_seconds = (
             settings.HISTORY_CACHE_TTL_SECONDS
