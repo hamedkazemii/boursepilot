@@ -72,7 +72,11 @@ async function(){
 
 
 
-function renderFunds(
+
+
+function renderFunds
+
+(
     id,
     data
 ){
