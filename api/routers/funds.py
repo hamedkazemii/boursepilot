@@ -1,30 +1,35 @@
-from fastapi import APIRouter
-from api.services.report_reader import load_ranking
+from fastapi import APIRouter, HTTPException
 
-router = APIRouter()
+from api.services.ranking_reader import find_symbol
 
 
-@router.get("/funds")
-def funds():
+router = APIRouter(
+    prefix="/api/v1/funds",
+    tags=["funds"]
+)
 
-    data = load_ranking()
+
+
+@router.get("/{symbol}")
+def fund(symbol:str):
+
+    item = find_symbol(symbol)
+
+    if not item:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Fund not found"
+        )
+
 
     return {
-        "items": data.get("items", [])
+
+        "fund":
+            item,
+
+        "explain_fa":
+            "اطلاعات تحلیلی صندوق از موتور صندوقچی"
+
     }
 
-
-@router.get("/funds/{symbol}")
-def fund_detail(symbol:str):
-
-    data = load_ranking()
-
-    for item in data.get("items", []):
-
-        if item.get("symbol") == symbol:
-            return item
-
-    return {
-        "symbol": symbol,
-        "found": False
-    }

@@ -1,30 +1,41 @@
 from fastapi import APIRouter
-from api.services.report_reader import (
-    load_ranking,
+
+from api.services.ranking_reader import (
+    get_all,
     get_top,
     get_worst
 )
 
-router = APIRouter()
+
+router = APIRouter(
+    prefix="/api/v1/ranking",
+    tags=["ranking"]
+)
 
 
-@router.get("/ranking/today")
-def ranking_today():
-
-    return load_ranking()
-
-
-@router.get("/ranking/top")
-def ranking_top(limit:int = 5):
+@router.get("/today")
+def today():
 
     return {
-        "items": get_top(limit)
+        "items": get_all()
     }
 
 
-@router.get("/ranking/worst")
-def ranking_worst(limit:int = 5):
+@router.get("/top")
+def top(limit:int = 10):
 
     return {
-        "items": get_worst(limit)
+        "items":
+            get_top(limit)
     }
+
+
+
+@router.get("/worst")
+def worst(limit:int = 10):
+
+    return {
+        "items":
+            get_worst(limit)
+    }
+
