@@ -1,102 +1,47 @@
-
 from fastapi import APIRouter
 
-router=APIRouter(
-prefix="/admin",
-tags=["admin"]
-)
+router = APIRouter()
 
 
 @router.post("/login")
-def login(data:dict):
-
+def admin_login():
     return {
-        "token":
-        "admin-demo-token",
-        "role":"admin"
+        "status": "ok",
+        "message": "admin login endpoint"
     }
-
 
 
 @router.get("/overview")
-def overview():
-
+def admin_overview():
     return {
-
-        "universe_size":0,
-        "last_run_at":None,
-        "source":"offline",
-        "sane":False,
-        "gap":0,
-        "users_count":0
-
+        "status": "ok",
+        "overview": {}
     }
-
 
 
 @router.post("/pipeline/run")
-def run_pipeline(data:dict):
-
+def run_pipeline():
     return {
-
-        "status":"queued",
-        "type":
-        data.get("type","analysis")
-
+        "status": "queued"
     }
-
 
 
 @router.get("/ranking/preview")
 def ranking_preview():
-
     return {
-
-        "top":[],
-        "worst":[]
-
+        "ranking": []
     }
-
 
 
 @router.post("/telegram/publish")
-def publish(data:dict):
-
+def telegram_publish():
     return {
-
-        "status":"dry-run",
-        "type":
-        data.get("type")
-
+        "status": "queued"
     }
-
 
 
 @router.get("/config/scoring")
-def scoring():
-
+def scoring_config():
     return {
-
-        "weights":{
-
-            "liquidity":0.18,
-            "momentum":0.16,
-            "risk":0.20
-
-        }
-
+        "weights": {}
     }
-
-
-
-@router.put("/config/scoring")
-def update_scoring(data:dict):
-
-    return {
-
-        "status":"updated",
-        "config":data
-
-    }
-
-

@@ -1,36 +1,11 @@
-
 from fastapi import APIRouter
 
-from core.ai.advisor_engine import AdvisorEngine
+router = APIRouter()
 
 
-router=APIRouter(
-prefix="/ai",
-tags=["ai"]
-)
-
-
-
-engine=AdvisorEngine()
-
-
-
-@router.post("/advisor")
-
-def advisor(data:dict):
-
-
-    return engine.answer(
-
-        data.get(
-            "message",
-            ""
-        ),
-
-        data.get(
-            "context",
-            {}
-        )
-
-    )
-
+@router.get("/advisor")
+def advisor_status():
+    return {
+        "status": "ready",
+        "engine": "sandoghchi-ai"
+    }
