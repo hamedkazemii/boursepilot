@@ -1,0 +1,18 @@
+[Unit]
+
+Description=Sandoghchi Telegram Bot
+
+
+[Service]
+
+WorkingDirectory=/opt/boursepilot
+
+ExecStart=/opt/boursepilot/.venv/bin/python tools/run_telegram_bot.py
+
+Restart=always
+
+
+[Install]
+
+WantedBy=multi-user.target
+

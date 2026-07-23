@@ -1,0 +1,23 @@
+[Unit]
+
+Description=Sandoghchi FastAPI
+
+After=docker.service
+
+
+[Service]
+
+Restart=always
+
+WorkingDirectory=/opt/boursepilot
+
+ExecStart=/usr/bin/docker compose up
+
+ExecStop=/usr/bin/docker compose down
+
+
+
+[Install]
+
+WantedBy=multi-user.target
+

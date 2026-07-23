@@ -50,3 +50,17 @@ Added:
 - Telegram publish endpoint
 - Scoring configuration endpoint
 
+
+
+## Deployment Layer
+
+Added:
+
+- Docker deployment
+- Docker compose
+- VPS templates
+- Nginx config
+- Systemd services
+- Health monitoring
+
+
