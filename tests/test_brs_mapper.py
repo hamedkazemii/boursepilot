@@ -6,13 +6,9 @@ import json
 import unittest
 from pathlib import Path
 
-from services.providers.brs_mapper import (
-    is_fund_like,
-    map_nav,
-    map_orderbook,
-    map_shareholders,
-    map_symbol_quote,
-)
+from services.providers.brs_mapper import (is_fund_like, map_nav,
+                                           map_orderbook, map_shareholders,
+                                           map_symbol_quote)
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "brs"
 

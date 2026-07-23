@@ -1,7 +1,6 @@
 
 import requests
 
-
 url = (
     "https://www.tsetmc.com/Loader.aspx"
 )

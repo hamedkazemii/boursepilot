@@ -6,14 +6,9 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from services.providers.models import (
-    MoneyFlowSnapshot,
-    NavData,
-    OrderBookLevel,
-    OrderBookSnapshot,
-    ShareholderRow,
-    SymbolQuote,
-)
+from services.providers.models import (MoneyFlowSnapshot, NavData,
+                                       OrderBookLevel, OrderBookSnapshot,
+                                       ShareholderRow, SymbolQuote)
 from services.providers.textnorm import normalize_fa, normalize_symbol
 
 

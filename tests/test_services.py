@@ -1,5 +1,5 @@
-from services.nav import NAVService
 from services.market_data import MarketDataService
+from services.nav import NAVService
 from services.storage import HistoryStorage
 
 

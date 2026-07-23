@@ -1,5 +1,6 @@
-from services.tsetmc_client import TSETMCClient
 import json
+
+from services.tsetmc_client import TSETMCClient
 
 client = TSETMCClient()
 

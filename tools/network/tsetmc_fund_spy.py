@@ -4,7 +4,6 @@ from pathlib import Path
 
 from playwright.async_api import async_playwright
 
-
 OUTPUT = Path(
     "data/tsetmc_network_dump.json"
 )

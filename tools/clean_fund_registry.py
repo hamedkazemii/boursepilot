@@ -1,6 +1,5 @@
 import json
 
-
 FILE = "data/fund_registry.json"
 
 

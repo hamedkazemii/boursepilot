@@ -1,10 +1,8 @@
 
-from services.tsetmc_client import TSETMCClient
-from services.fund_loader import FundLoader
-
-from core.market_engine import MarketEngine
 from core.market_analyzer import MarketAnalyzer
-
+from core.market_engine import MarketEngine
+from services.fund_loader import FundLoader
+from services.tsetmc_client import TSETMCClient
 
 
 class MarketScanner:

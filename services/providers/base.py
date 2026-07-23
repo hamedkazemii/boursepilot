@@ -9,11 +9,7 @@ from __future__ import annotations
 
 from typing import Optional, Protocol, runtime_checkable
 
-from services.providers.models import (
-    NavData,
-    ShareholderRow,
-    SymbolQuote,
-)
+from services.providers.models import NavData, ShareholderRow, SymbolQuote
 
 
 @runtime_checkable

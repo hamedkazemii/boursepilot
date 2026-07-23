@@ -1,7 +1,6 @@
-from services.fund_loader import FundLoader
-from services.analyzer import FundAnalyzer
 from core.ranking import RankingEngine
-
+from services.analyzer import FundAnalyzer
+from services.fund_loader import FundLoader
 
 funds = FundLoader().load()
 

@@ -1,10 +1,7 @@
-from services.fund_loader import FundLoader
-from services.analyzer import FundAnalyzer
-
 from core.ranking import RankingEngine
-
 from reports.ranking_report import RankingReport
-
+from services.analyzer import FundAnalyzer
+from services.fund_loader import FundLoader
 
 
 def main():

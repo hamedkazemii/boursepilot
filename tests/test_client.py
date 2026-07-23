@@ -1,6 +1,5 @@
 from services.tsetmc_client import TSETMCClient
 
-
 DARONO = "34074071043606558"
 
 client = TSETMCClient()

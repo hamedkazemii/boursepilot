@@ -1,9 +1,8 @@
-from services.nav import NAVService
-from services.market_data import MarketDataService
-
-from core.scoring import BPIScorer, FundMetrics
 from core.decision import DecisionEngine
 from core.ranking import FundRanking
+from core.scoring import BPIScorer, FundMetrics
+from services.market_data import MarketDataService
+from services.nav import NAVService
 
 
 class FundAnalyzer:

@@ -1,5 +1,5 @@
-from services.tsetmc_client import TSETMCClient
 from core.market_engine import MarketEngine
+from services.tsetmc_client import TSETMCClient
 
 client = TSETMCClient()
 

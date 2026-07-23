@@ -6,9 +6,9 @@ import logging
 from typing import Any, Optional
 
 from config import settings
-from reports.formatters.human_report import HumanReportFormatter
 from core.preopen.analyzer import PreopenSignal
 from core.scoring.models import FundAssessment
+from reports.formatters.human_report import HumanReportFormatter
 from services.telegram import TelegramService
 
 logger = logging.getLogger(__name__)

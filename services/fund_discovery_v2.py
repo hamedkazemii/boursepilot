@@ -1,7 +1,6 @@
-import requests
-import string
 import time
 
+import requests
 
 SEARCH_URL = (
     "https://old.tsetmc.com/tsev2/data/search.aspx"

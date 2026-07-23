@@ -1,9 +1,7 @@
 
 
-from services.tsetmc_market import TSETMCMarket
 from core.market_universe import MarketUniverse
-
-
+from services.tsetmc_market import TSETMCMarket
 
 market = TSETMCMarket()
 

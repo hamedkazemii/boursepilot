@@ -3,7 +3,6 @@ from datetime import datetime
 
 from services.tsetmc_client import TSETMCClient
 
-
 INPUT = "data/fund_registry.json"
 OUTPUT = "data/fund_scores.json"
 

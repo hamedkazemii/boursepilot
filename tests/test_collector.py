@@ -1,6 +1,5 @@
-from services.providers.fund_provider import FundProvider
 from services.collectors.fund_collector import FundCollector
-
+from services.providers.fund_provider import FundProvider
 
 provider = FundProvider()
 
