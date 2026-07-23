@@ -1,5 +1,12 @@
 from fastapi import APIRouter
 
+from api.services.user_repository import (
+    ensure_user,
+    get_portfolio,
+    add_item,
+    delete_item
+)
+
 
 router = APIRouter(
     prefix="/api/v1",
@@ -7,30 +14,55 @@ router = APIRouter(
 )
 
 
+
 @router.get("/me/portfolio")
 def portfolio():
 
+    user = ensure_user()
+
     return {
-        "total_value": 0,
-        "profit_loss": 0,
-        "items": []
+        "user": user,
+        "items":
+            get_portfolio(
+                user["id"]
+            )
     }
+
 
 
 @router.post("/me/portfolio/items")
-def add_item(item: dict):
+def create_item(item:dict):
+
+    user = ensure_user()
+
+
+    add_item(
+        user["id"],
+        item.get("symbol"),
+        item.get("units",0),
+        item.get("avg_price",0)
+    )
+
 
     return {
-        "success": True,
-        "item": item
+        "success":True
     }
 
 
+
 @router.delete("/me/portfolio/items/{symbol}")
-def delete_item(symbol: str):
+def remove(symbol:str):
+
+    user=ensure_user()
+
+
+    delete_item(
+        user["id"],
+        symbol
+    )
+
 
     return {
-        "success": True,
-        "deleted": symbol
+        "success":True
     }
 
