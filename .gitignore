@@ -1,4 +1,15 @@
-.venv/
+# Python
 __pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+
+# Environment
 .env
-data/snapshots_test/
+
+# Reports
+reports/
+data/snapshots/
+
+# macOS
+.DS_Store
