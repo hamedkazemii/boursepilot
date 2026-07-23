@@ -2,3 +2,7 @@
 __pycache__/
 .env
 data/snapshots_test/
+data/database.db
+data/database.db-*
+*.db-journal
+.pytest_cache/
