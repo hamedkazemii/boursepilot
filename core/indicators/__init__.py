@@ -1,6 +1,5 @@
-"""Indicator Engine (Sprint 2) — placeholder package.
+"""Indicator Engine."""
 
-Will compute EMA/RSI/MACD/ATR/Bollinger/Sharpe/Sortino/Drawdown from history series.
-"""
+from core.indicators.engine import IndicatorEngine, IndicatorSnapshot
 
-__all__: list[str] = []
+__all__ = ["IndicatorEngine", "IndicatorSnapshot"]
