@@ -62,3 +62,7 @@ app.include_router(funds.router)
 app.include_router(portfolio.router)
 
 app.include_router(advisor.router)
+
+from api.routers import admin
+
+app.include_router(admin.router)

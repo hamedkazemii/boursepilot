@@ -38,3 +38,15 @@ Version:
 منطق تحلیل فعلی باید حفظ شود.
 
 UI و API فقط مصرف‌کننده Core هستند.
+
+
+## Admin Panel
+
+Added:
+- Admin API foundation
+- Dashboard scaffold
+- Pipeline controls
+- Ranking QA endpoints
+- Telegram publish endpoint
+- Scoring configuration endpoint
+
