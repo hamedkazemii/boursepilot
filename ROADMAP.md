@@ -1,234 +1,69 @@
 # BoursePilot Roadmap
 
-## Version 0.1 - Foundation ✅
+## Done
 
-انجام شده:
+### v0.1–0.5 Foundation → Telegram V1 ✅
+- ساختار پروژه، BRS provider، discovery، scoring factors، ranking
+- پیش‌گشایش، تلگرام کانال، ربات long-poll
 
-- ساخت ساختار پروژه
-- ایجاد Core Engine
-- ایجاد Service Layer
-- اتصال اولیه به TSETMC
-- ساخت Scanner اولیه
-- ساخت Ranking Engine
-- ساخت Scoring Engine
-
-
----
-
-# Version 0.2 - Real Market Discovery ✅
-
-انجام شده:
-
-- اتصال به Endpoint قدیمی TSETMC Search
-- کشف خودکار نمادها
-- حذف وابستگی به funds.json دستی
-- استخراج InsCode واقعی
-
+### v0.6 History Engine + Smart Report ✅ (Sprint 1)
+- SQLite: funds / history / nav_history / market_snapshot / daily_scores / request_cache
+- sync incremental + cache
+- گزارش هوشمند چندپیامی تلگرام
+- workflows واقعی daily/preopen/morning
 
 ---
 
-# Version 0.3 - Fund Registry 🔄
+## Sprint 2 — Indicator Engine
+برای هر صندوق از سری `history`:
+- EMA20 / EMA50 / EMA200
+- RSI / MACD / ATR / Bollinger
+- Sharpe / Sortino / Max Drawdown / Volatility
+- Momentum / Liquidity series / Premium NAV series
+- بازده ۱/۵/۲۰/۶۰/۹۰ روز
 
-در حال انجام:
-
-هدف:
-
-ساخت مرجع اصلی صندوق‌های بازار
-
-
-مراحل:
-
-1. دریافت 194 نماد کشف شده
-
-2. دریافت InstrumentInfo برای هر نماد
-
-3. بررسی:
-
-- cgrValCotTitle
-- sector
-- faraDesc
-
-
-4. حذف:
-
-- سهام عادی
-- حق تقدم
-- اوراق
-- ابزارهای غیر صندوق
-
-
-5. ذخیره:
-
-data/fund_registry.json
-
-
-
-خروجی:
-
-لیست کامل صندوق‌های واقعی
-
+خروجی: `core/indicators/` + جدول یا JSON جانبی indicators
 
 ---
 
-# Version 0.4 - Market Analyzer
-
-هدف:
-
-تحلیل واقعی بازار
-
-
-اضافه می‌شود:
-
-
-## OrderBook Analysis
-
-- قدرت خریدار
-- قدرت فروشنده
-- صف خرید
-- صف فروش
-
-
-## Liquidity
-
-- حجم معاملات
-- ارزش معاملات
-- گردش
-
-
-## Trend
-
-- روند کوتاه مدت
-- روند میان مدت
-- روند بلند مدت
-
+## Sprint 3 — Smart Ranking Engine
+امتیاز چندبُعدی پایدار (نه فقط snapshot امروز):
+- Trend / Money Flow / Risk / Liquidity / Volume / NAV / Technical / Historical Return / AI Confidence
+- Final Score 0..100
+- توضیح «چرا این رتبه؟» مبتنی بر سری زمانی
 
 ---
 
-# Version 0.5 - NAV Engine
-
-هدف:
-
-تحلیل ارزش واقعی صندوق
-
-
-محاسبات:
-
-
-NAV
-
-Market Price
-
-Premium
-
-Discount
-
-
-خروجی:
-
-حباب مثبت / منفی
-
+## Sprint 4 — Market Analyzer (۸:۵۰)
+- قدرت کل بازار و گروه‌ها
+- ورود/خروج پول
+- پیش‌سفارش‌ها
+- بیشترین حجم و نقدشوندگی
 
 ---
 
-# Version 0.6 - BPI Score Engine
-
-
-امتیاز نهایی:
-
-BoursePilot Index
-
-
-فرمول:
-
-
-Performance
-
-+
-
-Liquidity
-
-+
-
-Smart Money
-
-+
-
-NAV
-
-+
-
-Risk
-
-+
-
-Trend
-
-
-
-خروجی:
-
-Score 0-100
-
+## Sprint 5 — Telegram Platform
+دستورها:
+`/today` `/top` `/worst` `/gold` `/fixed` `/stock`
+`/search` `/compare` `/portfolio` `/watchlist` `/help`
 
 ---
 
-# Version 0.7 - Recommendation Engine
-
-
-تولید پیشنهاد:
-
-
-Strong Buy
-
-Buy
-
-Hold
-
-Avoid
-
-Sell
-
-
-
-بر اساس:
-
-Score
-
-Risk
-
-Trend
-
-NAV
-
+## Sprint 6 — Portfolio
+- پرتفو، هدف، ریسک، افق زمانی هر کاربر
+- گزارش شخصی صبحگاهی
 
 ---
 
-# Version 0.8 - Reporting
-
-
-گزارش روزانه:
-
-
-- بهترین صندوق‌ها
-- ضعیف‌ترین صندوق‌ها
-- فرصت‌ها
-- ریسک‌ها
-
+## Sprint 7 — AI Advisor
+پیشنهاد تخصیص بر اساس سرمایه / ریسک / افق
 
 ---
 
-# Version 0.9 - Automation
-
-
-- Scheduler
-- Daily Scan
-- Telegram Bot
-- Notification
-
+## Sprint 8 — Realtime
+اسکن دوره‌ای + هشدار ورود پول / صف خرید / شکست سطح
 
 ---
 
-# Version 1.0
-
-
-سیستم کامل تحلیل هوشمند صندوق‌های بورس ایران
+## v1.0
+دستیار هوشمند سرمایه‌گذاری صندوق‌های بورس ایران — نه فقط فهرست رتبه
