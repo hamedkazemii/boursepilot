@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from config import settings
+from core.history.engine import HistoryEngine
 from core.ranking.fund_ranker import FundRanker
 from core.scoring.models import FundAssessment
 from core.scoring.score_engine import ScoreEngine
@@ -32,6 +33,7 @@ class DailyRankPipeline:
         score_engine: Optional[ScoreEngine] = None,
         fetch_nav: Optional[bool] = None,
         max_nav_workers: Optional[int] = None,
+        persist_history: bool = True,
     ) -> None:
         self.provider = provider or get_market_data_provider()
         self.store = store or SnapshotStore()
@@ -45,6 +47,8 @@ class DailyRankPipeline:
         self.max_nav_workers = (
             settings.NAV_FETCH_WORKERS if max_nav_workers is None else int(max_nav_workers)
         )
+        self.persist_history = bool(persist_history)
+        self.history = HistoryEngine(provider=self.provider) if self.persist_history else None
 
     def run(self, limit: Optional[int] = None) -> dict[str, Any]:
         started = datetime.now().astimezone()
@@ -69,6 +73,21 @@ class DailyRankPipeline:
         ranked = self.ranker.rank(assessments)
         by_type = {k: [a.to_dict() for a in v] for k, v in self.ranker.by_type(ranked).items()}
 
+        history_stats: dict[str, Any] = {}
+        if self.history is not None:
+            try:
+                # ذخیره OHLC/جریان پول از همان quotes کشف‌شده (بدون درخواست اضافه)
+                from core.classification.fund_type import classify_fund_type
+
+                ftypes = {q.symbol: classify_fund_type(q) for q in funds if q.symbol}
+                history_stats = self.history.repo.bulk_upsert_quotes(funds, fund_types=ftypes)
+                score_day = datetime.now().astimezone().date().isoformat()
+                self.history.persist_scores(ranked, score_date=score_day)
+                history_stats["scores_saved"] = len(ranked)
+            except Exception as exc:  # noqa: BLE001
+                logger.exception("history persist failed: %s", exc)
+                history_stats = {"error": str(exc)}
+
         payload = {
             "generated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
             "started_at": started.isoformat(timespec="seconds"),
@@ -83,6 +102,7 @@ class DailyRankPipeline:
             "rankings": [a.to_dict() for a in ranked],
             "by_type": by_type,
             "catalog_count": catalog_payload.get("count"),
+            "history": history_stats,
         }
 
         rank_path = self.store.save_json("daily_ranking", payload)

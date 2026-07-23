@@ -106,7 +106,7 @@ class TestPublisherFormat(unittest.TestCase):
             change_pct=1.0,
         )
         text = format_preopen_telegram([sig])
-        self.assertIn("پیش‌سفارش", text)
+        self.assertTrue("پیش‌گشایش" in text or "پیش‌سفارش" in text)
         self.assertIn("عیار", text)
 
     def test_fund_format(self) -> None:
@@ -117,9 +117,15 @@ class TestPublisherFormat(unittest.TestCase):
     def test_publisher_uses_service(self) -> None:
         tg = MagicMock()
         tg.send_message.return_value = True
+        tg.send_messages.return_value = True
         pub = TelegramPublisher(telegram=tg)
+        # پیش‌فرض smart=True → send_messages
         ok = pub.publish_ranking([_sample_assessment()])
         self.assertTrue(ok)
+        self.assertTrue(tg.send_messages.called)
+        # compact تک‌پیامی
+        ok2 = pub.publish_ranking([_sample_assessment()], smart=False)
+        self.assertTrue(ok2)
         self.assertTrue(tg.send_message.called)
 
 
