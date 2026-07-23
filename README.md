@@ -1,36 +1,159 @@
-# صندوقچی (BoursePilot)
+# 🟢 صندوقچی (Sandoghchi / BoursePilot)
 
-دستیار هوشمند صندوق‌های قابل‌معامله ایران.
+## AI Assistant for Iranian Investment Funds
 
-**نسخه:** 0.5.0
 
-## قابلیت‌های فعلی
-- داده زنده BrsApi
-- کشف روزانه صندوق‌ها
-- امتیاز چندعاملی + رنکینگ فارسی
-- پیش‌سفارش
-- ارسال گزارش به **کانال تلگرام**
-- ربات دستوری (`/rank` `/preopen` `/fund` ...)
+صندوقچی یک دستیار هوشمند تحلیل صندوق‌های سرمایه‌گذاری ایران است.
 
-## Secrets
-```
-BRS_API_KEY
-TELEGRAM_BOT_TOKEN
-TELEGRAM_CHAT_ID
-```
+قابلیت‌ها:
 
-## اجرا
-```bash
-pip install -r requirements.txt
-cp .env.example .env
+- دریافت داده بازار
+- تحلیل تاریخچه
+- اندیکاتورهای تکنیکال
+- رتبه‌بندی هوشمند صندوق‌ها
+- تحلیل پرتفو
+- مشاور هوشمند AI
 
-python -m unittest tests.test_textnorm tests.test_brs_mapper tests.test_brs_provider tests.test_score_engine tests.test_telegram -v
 
-python tools/run_telegram_rank.py --no-nav --dry-run
-python tools/run_telegram_preopen.py --dry-run
-```
+---
 
-## مستندات
-- `docs/BRS_API.md`
-- `docs/DAILY_RANKING.md`
-- `docs/TELEGRAM.md`
+# Architecture
+
+
+BRS API
+
+↓
+
+Data Provider
+
+↓
+
+History Engine
+
+↓
+
+Indicators
+
+↓
+
+SmartRanker
+
+↓
+
+Analytics
+
+↓
+
+Telegram / Web / Admin
+
+↓
+
+AI Advisor
+
+
+---
+
+# Current Version
+
+0.7+
+
+
+---
+
+# Completed
+
+
+✅ Market Data Provider
+
+✅ History Engine
+
+✅ SQLite Storage
+
+✅ Indicator Engine
+
+✅ SmartRanker
+
+✅ Quality Gate
+
+✅ Telegram Bot
+
+✅ Portfolio Service
+
+✅ AI Memory Base
+
+
+---
+
+# Development Roadmap
+
+
+Phase 1:
+
+FastAPI Backend
+
+
+Phase 2:
+
+User Web App
+
+
+Phase 3:
+
+Admin Panel
+
+
+Phase 4:
+
+AI Advisor
+
+
+Phase 5:
+
+Production Scale
+
+
+---
+
+# Rules
+
+
+SmartRanker تنها مرجع رتبه‌بندی است.
+
+
+Frontend فقط نمایش‌دهنده است.
+
+
+AI:
+
+- تحلیل ارائه می‌کند
+- سود تضمین نمی‌کند
+- سیگنال قطعی نمی‌دهد
+
+
+Secret داخل Git ممنوع است.
+
+
+---
+
+# Documentation
+
+
+شروع:
+
+docs/00_AGENT_START.md
+
+
+Context:
+
+docs/PROJECT_CONTEXT.md
+
+
+Master:
+
+docs/SANDOGHCHI_MASTER_CONTEXT.md
+
+
+Index:
+
+docs/03_DOCUMENTATION_INDEX.md
+
