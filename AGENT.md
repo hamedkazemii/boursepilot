@@ -1,74 +1,29 @@
-# صندوقچی Agent Entry Point
+# Sandoghchi Agent Protocol
 
+Before changing code:
 
-قبل از شروع کار:
+1. Run:
+git status
+bash tools/agent_check.sh
 
+2. Read:
+docs/START_HERE.md
+docs/MASTER_CONTEXT.md
+docs/PROJECT_STATE.md
+docs/ARCHITECTURE.md
 
-1. docs/00_AGENT_START.md
+Rules:
 
-2. docs/PROJECT_CONTEXT.md
+- Do not create duplicate routers
+- Do not change API prefixes without audit
+- Do not commit secrets
+- Do not commit database files
+- Update requirements.txt after dependencies
 
-3. docs/SANDOGHCHI_MASTER_CONTEXT.md
+Architecture:
 
-
----
-
-# Mission
-
-ادامه توسعه صندوقچی بدون ایجاد مسیر موازی.
-
-
----
-
-# Current Focus
-
-
-API
-
-↓
-
-User Web App
-
-↓
-
-Admin Panel
-
-↓
-
-AI Advisor
-
-
----
-
-# ممنوع
-
-
-- Rewrite Core بدون دلیل
-- ساخت Ranking جدید
-- Hardcode Data
-- Commit Secret
-
-
----
-
-# Process
-
-
-Understand
-
-↓
-
-Plan
-
-↓
-
-Implement
-
-↓
-
-Test
-
-↓
-
-Document
-
+api = FastAPI backend
+core = intelligence engines
+services = external services
+web = user application
+admin = management panel
