@@ -76,7 +76,7 @@ def format_top_fund_messages(
     *,
     n: int = 5,
 ) -> list[str]:
-    return [_format_fund_card(a, kind="top") for a in ranked[: max(0, n)]]
+    return [format_fund_card(a, kind="top") for a in ranked[: max(0, n)]]
 
 
 def format_worst_fund_messages(
@@ -87,7 +87,7 @@ def format_worst_fund_messages(
     if n <= 0 or not ranked:
         return []
     worst = list(reversed(ranked[-n:]))
-    return [_format_fund_card(a, kind="worst") for a in worst]
+    return [format_fund_card(a, kind="worst") for a in worst]
 
 
 def build_smart_morning_messages(
@@ -108,7 +108,7 @@ def build_smart_morning_messages(
     return msgs
 
 
-def _format_fund_card(a: FundAssessment, *, kind: str) -> str:
+def format_fund_card(a: FundAssessment, *, kind: str) -> str:
     product = settings.PRODUCT_NAME
     if kind == "top":
         header = f"🏆 {product} | صندوق برتر #{a.rank or '-'}"
