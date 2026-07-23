@@ -14,3 +14,8 @@ data/snapshots/
 # macOS
 .DS_Store
 .venv/
+
+# Runtime database
+data/*.db
+data/*.sqlite
+data/*.sqlite3
