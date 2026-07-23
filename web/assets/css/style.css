@@ -1,0 +1,146 @@
+@font-face {
+    font-family: Vazir;
+    src: local("Vazirmatn");
+}
+
+
+:root {
+
+    --bg:#0b1220;
+    --surface:#111827;
+    --text:#f5f7fa;
+    --primary:#0e7c66;
+    --danger:#c23b3b;
+
+}
+
+
+.light {
+
+    --bg:#f7f8fa;
+    --surface:white;
+    --text:#111827;
+
+}
+
+
+
+* {
+    box-sizing:border-box;
+}
+
+
+body {
+
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:Vazir,system-ui;
+    padding-bottom:80px;
+
+}
+
+
+.header {
+
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:20px;
+
+}
+
+
+button {
+
+    background:var(--primary);
+    color:white;
+    border:0;
+    border-radius:12px;
+    padding:10px 16px;
+
+}
+
+
+main {
+
+    padding:16px;
+
+}
+
+
+.card {
+
+    background:var(--surface);
+    border-radius:16px;
+    padding:20px;
+    margin-bottom:16px;
+
+}
+
+
+.grid {
+
+    display:grid;
+    gap:16px;
+
+}
+
+
+.fund {
+
+    display:flex;
+    justify-content:space-between;
+    padding:12px 0;
+    border-bottom:1px solid #333;
+
+}
+
+
+.score {
+
+    font-weight:bold;
+}
+
+
+.good {
+
+    color:#0e7c66;
+
+}
+
+
+.bad {
+
+    color:#c23b3b;
+
+}
+
+
+
+.bottom-nav {
+
+    position:fixed;
+    bottom:0;
+    right:0;
+    left:0;
+
+    display:flex;
+    justify-content:space-around;
+
+    padding:15px;
+
+    background:var(--surface);
+
+}
+
+
+@media(min-width:900px){
+
+.grid{
+
+grid-template-columns:1fr 1fr;
+
+}
+
+}
