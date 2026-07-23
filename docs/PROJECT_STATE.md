@@ -1,80 +1,50 @@
-# صندوقچی Project State
+# Sandoghchi Project State
 
-Version:
-0.7+
+
+## Current Version
+
+Production Hardening Phase
+
 
 ## Completed
 
-- BRS Provider
-- DTO Layer
-- History Engine
-- SQLite Storage
-- Indicators
-- SmartRanker
-- Quality Gate
-- Telegram Bot
-- Portfolio Service
-- AI Memory Base
+- FastAPI backend
+- Authentication scaffold
+- Portfolio management
+- Fund ranking API
+- Fund detail API
+- Advisor API
+- Admin API
+- User Web Application
+- Agent protocol
+- Verification system
 
 
-## Current Priority
+## Infrastructure
 
-1. FastAPI Backend
-2. User Web App
-3. Admin Panel
-4. AI Advisor
+Backend:
 
-
-## Technical Debt
-
-- Legacy ranking modules
-- Full historical backfill
-- Production deployment
-- Authentication
+FastAPI
 
 
-## Important
+Database:
 
-منطق تحلیل فعلی باید حفظ شود.
-
-UI و API فقط مصرف‌کننده Core هستند.
+SQLite persistence layer
 
 
-## Admin Panel
+Frontend:
 
-Added:
-- Admin API foundation
-- Dashboard scaffold
-- Pipeline controls
-- Ranking QA endpoints
-- Telegram publish endpoint
-- Scoring configuration endpoint
+HTML/CSS/JS scaffold
 
 
+AI:
 
-## Deployment Layer
-
-Added:
-
-- Docker deployment
-- Docker compose
-- VPS templates
-- Nginx config
-- Systemd services
-- Health monitoring
+Advisor intelligence layer
 
 
+## Next
 
-
-## AI Intelligence Layer
-
-Added:
-
-- AI provider abstraction
-- Advisor engine
-- Prompt rules
-- AI memory foundation
-- Portfolio advice API
-- Admin AI controls
-
-
+- Production database migration
+- Deployment validation
+- CI/CD pipeline
+- Monitoring
