@@ -1,129 +1,119 @@
-
-const API="/api/v1";
-
-
-async function loadJSON(url){
-
-    const res = await fetch(API+url);
-
-    return await res.json();
-
-}
+document.addEventListener(
+"DOMContentLoaded",
+async function(){
 
 
+    const health =
+        await getHealth();
 
-function renderFunds(target,items){
 
-    const el=document.getElementById(target);
+    const market =
+        await getMarketSummary();
 
-    if(!items || items.length===0){
 
-        el.innerHTML="داده‌ای موجود نیست";
+    const top =
+        await getTopFunds();
+
+
+    const worst =
+        await getWorstFunds();
+
+
+
+    const source =
+        document.getElementById(
+            "source"
+        );
+
+
+    if(source && market){
+
+        source.innerText =
+            market.source || "unknown";
+
+    }
+
+
+
+    const quality =
+        document.getElementById(
+            "quality"
+        );
+
+
+    if(quality && market){
+
+        quality.innerText =
+            market.sane
+            ?
+            "OK"
+            :
+            "Warning";
+
+    }
+
+
+
+
+    renderFunds(
+        "top-list",
+        top
+    );
+
+
+    renderFunds(
+        "worst-list",
+        worst
+    );
+
+
+});
+
+
+
+
+function renderFunds(
+    id,
+    data
+){
+
+    const box =
+        document.getElementById(
+            id
+        );
+
+
+    if(!box || !data)
         return;
 
-    }
+
+    const items =
+        data.items || [];
 
 
-    el.innerHTML=items.map(f=>`
+    box.innerHTML =
+        items.map(
+            item => `
 
-    <div class="fund">
+            <div class="fund-card">
 
-        <div>
-            <b>${f.symbol || "-"}</b>
-            <div>${f.name || ""}</div>
-        </div>
+            <strong>
+            ${item.symbol}
+            </strong>
 
+            <br>
 
-        <div class="score">
+            امتیاز:
+            ${item.score}
 
-        ${f.score || "-"} 
-        
-        </div>
+            <br>
 
+            ${item.recommendation}
 
-    </div>
+            </div>
 
-    `).join("");
-
-}
-
-
-
-async function loadDashboard(){
-
-
-    try {
-
-
-        const summary =
-        await loadJSON("/market/summary");
-
-
-        document
-        .getElementById("marketSummary")
-        .innerHTML=`
-
-        منبع:
-        ${summary.source || "-"}
-
-        <br>
-
-        فاصله رتبه‌ها:
-        ${summary.gap || 0}
-
-        <br>
-
-        وضعیت:
-        ${summary.sane ? "معتبر":"نیازمند بررسی"}
-
-        `;
-
-
-
-        const top =
-        await loadJSON("/ranking/top");
-
-
-        renderFunds(
-            "topFunds",
-            top.items
-        );
-
-
-
-        const worst =
-        await loadJSON("/ranking/worst");
-
-
-        renderFunds(
-            "worstFunds",
-            worst.items
-        );
-
-
-
-    }
-
-    catch(e){
-
-        console.log(e);
-
-    }
-
+            `
+        ).join("");
 
 }
-
-
-
-document
-.getElementById("themeToggle")
-.onclick=()=>{
-
-document.body.classList.toggle("light");
-
-};
-
-
-
-loadDashboard();
 
