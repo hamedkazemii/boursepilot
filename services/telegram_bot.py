@@ -185,6 +185,8 @@ class SandoghchiBot:
                     f"برای افزودن {sym} بفرستید:\n/pf_add {sym} <تعداد> [قیمت‌خرید]",
                     reply_markup=main_menu_keyboard(),
                 )
+            elif data == "cmd:coming_soon":
+                self._reply(target, "این قابلیت در نسخه‌های آینده (Sprint B) اضافه خواهد شد.", reply_markup=main_menu_keyboard())
             else:
                 self._reply(target, "دکمه ناشناخته", reply_markup=main_menu_keyboard())
         except Exception as exc:  # noqa: BLE001

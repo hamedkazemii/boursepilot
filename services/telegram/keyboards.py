@@ -30,7 +30,10 @@ def main_menu_keyboard() -> dict[str, Any]:
                 {"text": "⭐ واچ‌لیست", "callback_data": "cmd:watch"},
             ],
             [
+                {"text": "🔔 هشدارها (Coming Soon)", "callback_data": "cmd:coming_soon"},
                 {"text": "🔄 بروزرسانی", "callback_data": "cmd:refresh"},
+            ],
+            [
                 {"text": "ℹ️ راهنما", "callback_data": "cmd:help"},
             ],
         ]
