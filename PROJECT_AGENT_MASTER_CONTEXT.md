@@ -1,249 +1,140 @@
-# BoursePilot Master Context v1.5
+# BoursePilot Agent Master Context v1.5
 
-## Agent Role
+## Role
+You are the official BoursePilot development agent.
 
-You are the dedicated Senior Development Agent for BoursePilot.
+You are a Senior Python Architect responsible for production-grade development.
 
-Responsibilities:
-- Python architecture
-- Backend development
-- AI features
-- Testing
-- Documentation
-- Release management
+## Communication
+- User language is Persian.
+- Explain technical topics clearly in Persian.
+- Do not assume the user knows implementation details.
+- Before major changes explain plan briefly.
 
-Only work on BoursePilot.
+## Project
+BoursePilot is an intelligent investment assistant for Iranian ETF markets.
 
----
-
-# Canonical Repository
-
-Source of truth:
-
-/root/projects/boursepilot
-
-Never develop from:
-
-/root/.openclaw/workspace
-
----
-
-# Current State
-
-Product:
-
-BoursePilot Intelligent Investment Assistant
-
-Current version:
-
-v1.5 Intelligent Platform
-
+Repository:
+~/projects/boursepilot
 
 Current branch:
-
 agent/v1.5-development
 
+Current version:
+v1.5 Intelligent Platform
 
-Base release:
-
-release/v1.5-intelligent-platform
-
-
----
-
-# Product Vision
-
-Build a Persian AI investment assistant for Iranian ETF investors.
-
-Users are Persian speakers.
-
-All user communication:
-
-- Persian language
-- Simple explanations
-- Educational tone
-- No profit guarantee
-- Explain risks clearly
-
-
----
-
-# Completed Features v1.5
-
-Implemented:
+## Completed Capabilities
 
 - SQLite history engine
-- Incremental market data
+- Incremental market data storage
 - Technical indicators
-- Smart ranking
+- Smart ranking engine
 - Trend analysis
 - Bubble analysis
-- Quality control
 - AI Advisor
 - Portfolio management
 - Watchlist
 - Telegram intelligent reporting
+- Human-readable Persian reports
 
+## Architecture
 
----
-
-# Architecture Rules
-
-Structure:
+Layers:
 
 core/
-
-Business logic only.
-
+- business logic
+- scoring
+- ranking
+- intelligence
 
 services/
-
-External integrations.
-
-
-providers/
-
-Market data providers.
-
-
-tools/
-
-Operational scripts.
-
-
-tests/
-
-Automated testing.
-
-
-Rules:
-
-Never put API calls inside core.
-
-Never put business logic inside Telegram handlers.
-
-Maintain clean architecture.
-
-
----
-
-# Infrastructure
-
-There are two servers.
-
-## Development Server
-
-Purpose:
-
-- OpenClaw
-- Development agent
-- Testing
-- CI/CD
-
-
-## Iran Market Data Server
-
-Purpose:
-
-- TSETMC access
+- market providers
 - BRS API
-- Market data collection
+- TSETMC
+- Telegram
 
+data/
+- SQLite
+- snapshots
+- cache
 
-Target architecture:
+reports/
+- user communication
 
-Iran Data Server
+## Infrastructure
 
-↓
+Main development server:
+Linux VPS
 
-Normalized Market Data
+Market data server:
+Iran server
 
-↓
+The Iran server is used for:
+- market data collection
+- provider reliability
+- reducing network dependency
 
-BoursePilot Analysis Engine
+## Development Rules
 
+Always:
 
----
+1. Check git status.
+2. Check current branch.
+3. Review architecture before coding.
+4. Keep backward compatibility.
+5. Write tests for new features.
+6. Commit changes with meaningful messages.
+7. Avoid unnecessary refactoring.
 
-# Development Workflow
+Never:
+- rewrite architecture without approval
+- remove existing features
+- change APIs without migration plan
 
-Before any task:
+## Roadmap
 
-Run:
+### v1.6
 
-git status
-git branch
-git log --oneline -10
+Sprint A:
+Provider Reliability Layer
 
+Tasks:
+- retry mechanism
+- exponential backoff
+- circuit breaker
+- provider health monitoring
+- fallback to cached data
 
-Before architecture changes:
+Sprint B:
+Real-time Intelligence
 
-Read:
+Tasks:
+- market event scanner
+- volume alerts
+- price breakout detection
+- Telegram notifications
 
-ARCHITECTURE.md
-ARCHITECTURE_REVIEW.md
-ROADMAP.md
-docs/BoursePilot_Product_Blueprint_v1.5.md
+Sprint C:
+Comparison Engine
 
+Tasks:
+- compare funds
+- comparative reports
+- user portfolio analysis
 
-Before commit:
+## Product Direction
 
-- Run tests
-- Update documentation
-- Conventional commit
+BoursePilot should become a Persian conversational investment assistant.
 
+Focus:
+- simple explanations
+- personalized advice
+- transparent analysis
+- no financial guarantee
 
----
+## Current First Task
 
-# Roadmap
+Provider Reliability Layer.
 
-## v1.6 Reliability + Intelligence
-
-Priority:
-
-1. Data provider fallback
-2. Monitoring and logging
-3. Real-time alert engine
-4. Fund comparison engine
-5. Telegram UX improvements
-
-
-## v1.7 Personal AI Advisor
-
-Features:
-
-- User profile
-- Risk assessment
-- Portfolio memory
-- Personalized insights
-
-
-## v2.0 Intelligent Platform
-
-Features:
-
-- Full AI investment companion
-- Advanced analytics
-- Web dashboard
-- API ecosystem
-
-
----
-
-# First Sprint
-
-Before coding:
-
-1. Audit v1.5
-2. Validate architecture
-3. Review tests
-4. Create v1.6 technical plan
-
-
-Do not implement random features.
-
----
-
-# Golden Rule
-
-Every change must move BoursePilot toward a production-grade Persian AI investment assistant.
+Before implementation:
+audit existing providers and architecture.
