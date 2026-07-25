@@ -109,34 +109,36 @@ def build_smart_morning_messages(
 
 
 def format_fund_card(a: FundAssessment, *, kind: str) -> str:
-    product = settings.PRODUCT_NAME
-    if kind == "top":
-        header = f"🏆 {product} | صندوق برتر #{a.rank or '-'}"
-        why = "چرا در برترین‌هاست؟"
-    else:
-        header = f"⚠️ {product} | صندوق ضعیف #{a.rank or '-'}"
-        why = "چرا در ضعیف‌هاست؟"
+    # جایگزین کردن اصطلاحات فنی با عبارات ساده
+    def _interpret_score(score: float) -> str:
+        if score >= 80: return "فوق‌العاده جذاب"
+        if score >= 60: return "جذاب"
+        if score >= 40: return "متوسط"
+        return "با احتیاط بررسی شود"
 
-    chg = f"{a.change_pct:+.2f}%" if a.change_pct is not None else "-"
+    def _interpret_risk(a: FundAssessment) -> str:
+        # فرض بر این است که منطق ریسک را از فاکتورها یا داده‌های موجود استخراج کنیم
+        # این یک پیاده‌سازی ساده برای شروع است
+        vol = getattr(a, 'volatility', 50)
+        if vol < 30: return "کم‌ریسک"
+        if vol < 70: return "ریسک متوسط"
+        return "پرریسک"
+
+    header = f"🏆 {product} | صندوق برتر #{a.rank or '-'}" if kind == "top" else f"⚠️ {product} | صندوق ضعیف #{a.rank or '-'}"
+    
     lines = [
         header,
         "",
         f"📌 {a.symbol} — {a.name}",
-        f"نوع: {a.fund_type}",
-        f"امتیاز نهایی: {a.final_score:.1f} / 100",
-        f"توصیه: {a.recommendation_label}",
-        f"تغییر روز: {chg}",
+        f"نوع صندوق: {a.fund_type}",
+        f"وضعیت کلی: {_interpret_score(a.final_score)}",
+        f"سطح ریسک: {_interpret_risk(a)}",
+        "",
+        f"💡 چرا این صندوق { 'جذاب' if kind == 'top' else 'قابل تامل' } است؟",
     ]
-    if a.volume is not None:
-        lines.append(f"حجم: {_fmt_int(a.volume)}")
-    if a.value is not None:
-        lines.append(f"ارزش معاملات: {_fmt_int(a.value)}")
-    if a.premium_pct is not None and -25 <= float(a.premium_pct) <= 25:
-        lines.append(f"حباب/تخفیف NAV: {a.premium_pct:+.2f}%")
-
-    lines.append("")
-    lines.append(why)
-    for r in explain_fund(a, kind="top" if kind == "top" else "worst", max_items=6):
+    
+    # استفاده از توضیح‌دهنده هوشمند به جای لیست خام
+    for r in explain_fund(a, kind="top" if kind == "top" else "worst", max_items=3):
         lines.append(f"• {r}")
 
     # فاکتورها: برای weak از ضعیف به قوی، برای top از قوی به ضعیف
