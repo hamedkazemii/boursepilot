@@ -9,29 +9,20 @@ def main_menu_keyboard() -> dict[str, Any]:
     return {
         "inline_keyboard": [
             [
-                {"text": "📊 امروز", "callback_data": "cmd:today"},
+                {"text": "📊 تحلیل امروز", "callback_data": "cmd:today"},
                 {"text": "🏆 برترین‌ها", "callback_data": "cmd:top"},
             ],
             [
-                {"text": "⚠️ ضعیف‌ها", "callback_data": "cmd:worst"},
-                {"text": "🌐 بازار", "callback_data": "cmd:market"},
+                {"text": "🔍 جستجوی صندوق", "callback_data": "cmd:search_prompt"},
+                {"text": "📁 سبد من", "callback_data": "cmd:portfolio"},
             ],
             [
-                {"text": "🥇 طلا", "callback_data": "cmd:gold"},
-                {"text": "💵 درآمد ثابت", "callback_data": "cmd:fixed"},
-                {"text": "📈 سهامی", "callback_data": "cmd:stock"},
+                {"text": "⭐ لیست پیگیری", "callback_data": "cmd:watch"},
+                {"text": "🤖 مشاور هوشمند", "callback_data": "cmd:ask"},
             ],
             [
-                {"text": "📁 پرتفوی من", "callback_data": "cmd:portfolio"},
-                {"text": "👤 پروفایل", "callback_data": "cmd:profile"},
-            ],
-            [
-                {"text": "🤖 سوال از مشاور", "callback_data": "cmd:ask"},
-                {"text": "⭐ واچ‌لیست", "callback_data": "cmd:watch"},
-            ],
-            [
-                {"text": "🔔 هشدارها (Coming Soon)", "callback_data": "cmd:coming_soon"},
-                {"text": "🔄 بروزرسانی", "callback_data": "cmd:refresh"},
+                {"text": "🔔 هشدارهای هوشمند (به‌زودی)", "callback_data": "cmd:coming_soon"},
+                {"text": "⚖️ مقایسه صندوق‌ها (به‌زودی)", "callback_data": "cmd:coming_soon"},
             ],
             [
                 {"text": "ℹ️ راهنما", "callback_data": "cmd:help"},

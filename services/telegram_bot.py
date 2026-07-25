@@ -185,6 +185,8 @@ class SandoghchiBot:
                     f"برای افزودن {sym} بفرستید:\n/pf_add {sym} <تعداد> [قیمت‌خرید]",
                     reply_markup=main_menu_keyboard(),
                 )
+            elif data == "cmd:search_prompt":
+                self._reply(target, "برای جستجو، نام یا بخشی از نماد صندوق را بفرستید (مثال: عیار)", reply_markup=main_menu_keyboard())
             elif data == "cmd:coming_soon":
                 self._reply(target, "این قابلیت در نسخه‌های آینده (Sprint B) اضافه خواهد شد.", reply_markup=main_menu_keyboard())
             else:
@@ -206,9 +208,22 @@ class SandoghchiBot:
         try:
             if cmd in {"start", "menu"}:
                 self.portfolio.ensure_user(uid, username=user.get("username") or "", first_name=user.get("first_name") or "")
+                welcome_msg = (
+                    f"سلام! 👋 به {settings.PRODUCT_NAME} خوش آمدید.\n\n"
+                    "صندوق‌چی، دستیار هوشمند شما برای تحلیل و سرمایه‌گذاری هوشمندانه در صندوق‌های بورس ایران.\n\n"
+                    "✅ امکانات فعلی:\n"
+                    "• تحلیل روزانه بازار و رنکینگ صندوق‌ها\n"
+                    "• شناسایی صندوق‌های برتر و ضعیف\n"
+                    "• مدیریت پرتفو و واچ‌لیست شخصی\n"
+                    "• مشاور هوشمند AI برای پاسخ به سوالات\n\n"
+                    "🚧 در حال توسعه (به‌زودی):\n"
+                    "• هشدارهای هوشمند نوسان و حجم\n"
+                    "• مقایسه تخصصی صندوق‌ها\n\n"
+                    "از منو زیر استفاده کنید:"
+                )
                 self._reply(
                     chat_id,
-                    f"سلام 👋 به {settings.PRODUCT_NAME} خوش آمدید.\nپروفایل شما ساخته/به‌روز شد.\nاز منو استفاده کنید.",
+                    welcome_msg,
                     reply_markup=main_menu_keyboard(),
                 )
             elif cmd == "help":
