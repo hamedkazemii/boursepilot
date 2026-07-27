@@ -20,11 +20,24 @@ from services.providers.exceptions import ProviderError
 from services.providers.factory import get_market_data_provider
 from services.snapshot.store import SnapshotStore
 from services.telegram import TelegramService
+from services.telegram.beta_onboarding import (
+    ONBOARDING_STEPS,
+    onboarding_complete_message,
+    onboarding_keyboard,
+    onboarding_question,
+    parse_onboarding_response,
+)
+from services.telegram.investor_report import (
+    humanized_fund_card,
+    humanized_market_summary,
+    humanized_portfolio_report,
+)
 from services.telegram.keyboards import (
     after_report_keyboard,
     fund_actions_keyboard,
     help_text,
     main_menu_keyboard,
+    onboarding_start_keyboard,
 )
 from services.telegram.rank_loader import get_cached_payload, load_rankings
 from services.telegram.smart_report import (
@@ -57,6 +70,8 @@ class SandoghchiBot:
         self.offset: Optional[int] = None
         try:
             self.provider = get_market_data_provider()
+            if getattr(self.provider, "name", "") == "demo":
+                logger.warning("provider in DEMO mode — no live market data")
         except Exception as exc:  # noqa: BLE001
             logger.warning("provider init failed: %s", exc)
             self.provider = None
@@ -68,6 +83,7 @@ class SandoghchiBot:
         self._ranked_at = 0.0
         self._ranked_source = ""
         self._awaiting_ask: set[str] = set()
+        self._onboarding_state: dict[str, int] = {}  # user_id -> step_index
         self.warm_cache = warm_cache
 
     def setup(self) -> dict[str, Any]:
@@ -144,6 +160,18 @@ class SandoghchiBot:
             return
         # free text
         uid = str(user.get("id") or chat_id)
+        # onboarding capital input
+        if uid in self._onboarding_state:
+            current_step = self._onboarding_state[uid]
+            if current_step < len(ONBOARDING_STEPS) and ONBOARDING_STEPS[current_step].get("input"):
+                num = _parse_number(text)
+                if num is not None and num > 0:
+                    self.portfolio.update_profile(uid, capital=num)
+                    self._onboarding_state[uid] = current_step + 1
+                    self._send_onboarding_step(chat_id, uid, current_step + 1)
+                else:
+                    self._reply(chat_id, "❌ لطفاً یک عدد معتبر وارد کنید.\nمثال: ۵۰۰۰۰۰۰۰ یا ۵۰ میلیون")
+                return
         if uid in self._awaiting_ask or chat.get("type") == "private":
             self._awaiting_ask.discard(uid)
             self._cmd_ask(chat_id, text, user=user)
@@ -185,6 +213,10 @@ class SandoghchiBot:
                     f"برای افزودن {sym} بفرستید:\n/pf_add {sym} <تعداد> [قیمت‌خرید]",
                     reply_markup=main_menu_keyboard(),
                 )
+            elif data.startswith("onboard:"):
+                self._handle_onboarding_callback(target, data, user_id or target, user)
+            elif data == "cmd:onboarding_start":
+                self._start_onboarding(target, user_id or target)
             elif data == "cmd:search_prompt":
                 self._reply(target, "برای جستجو، نام یا بخشی از نماد صندوق را بفرستید (مثال: عیار)", reply_markup=main_menu_keyboard())
             elif data == "cmd:coming_soon":
@@ -208,24 +240,15 @@ class SandoghchiBot:
         try:
             if cmd in {"start", "menu"}:
                 self.portfolio.ensure_user(uid, username=user.get("username") or "", first_name=user.get("first_name") or "")
-                welcome_msg = (
-                    f"سلام! 👋 به {settings.PRODUCT_NAME} خوش آمدید.\n\n"
-                    "صندوق‌چی، دستیار هوشمند شما برای تحلیل و سرمایه‌گذاری هوشمندانه در صندوق‌های بورس ایران.\n\n"
-                    "✅ امکانات فعلی:\n"
-                    "• تحلیل روزانه بازار و رنکینگ صندوق‌ها\n"
-                    "• شناسایی صندوق‌های برتر و ضعیف\n"
-                    "• مدیریت پرتفو و واچ‌لیست شخصی\n"
-                    "• مشاور هوشمند AI برای پاسخ به سوالات\n\n"
-                    "🚧 در حال توسعه (به‌زودی):\n"
-                    "• هشدارهای هوشمند نوسان و حجم\n"
-                    "• مقایسه تخصصی صندوق‌ها\n\n"
-                    "از منو زیر استفاده کنید:"
-                )
-                self._reply(
-                    chat_id,
-                    welcome_msg,
-                    reply_markup=main_menu_keyboard(),
-                )
+                u = self.portfolio.ensure_user(uid)
+                if not u.get("risk_profile"):
+                    welcome = (
+                        f"سلام! 👋 به {settings.PRODUCT_NAME} خوش آمدید.\n\n"
+                        "برای ارائه بهترین تحلیل‌ها، چند سؤال ساده ازتون می‌پرسم."
+                    )
+                    self._reply(chat_id, welcome, reply_markup=onboarding_start_keyboard())
+                else:
+                    self._reply(chat_id, f"خوش برگشتید! 👋\n{settings.PRODUCT_NAME} آماده است.", reply_markup=main_menu_keyboard())
             elif cmd == "help":
                 self._reply(chat_id, help_text(), reply_markup=main_menu_keyboard())
             elif cmd == "today":
@@ -323,15 +346,19 @@ class SandoghchiBot:
         msgs = build_smart_morning_messages(ranked, meta=get_cached_payload(), top_n=top_n, worst_n=worst_n)
         if self._source_note():
             msgs[0] = self._source_note() + msgs[0]
-        # sanity footer
+        # humanized summary as first message
         if n >= 10:
             gap = ranked[0].final_score - ranked[-1].final_score
-            msgs[0] += f"\n\n✅ جهان تحلیل: {n} صندوق | فاصله بهترین تا ضعیف‌ترین: {gap:.1f}"
+            up_count = sum(1 for a in ranked if (a.change_last_pct or 0) > 0)
+            down_count = n - up_count
+            avg_change = sum((a.change_last_pct or 0) for a in ranked) / n
+            msgs.insert(0, humanized_market_summary(ranked, up_count=up_count, down_count=down_count, avg_change=avg_change))
         self.telegram.send_messages(msgs, chat_id=chat_id, reply_markup_last=after_report_keyboard())
 
     def _send_top(self, chat_id: str) -> None:
         ranked = self._get_ranked()
-        msgs = format_top_fund_messages(ranked, n=5)
+        top5 = ranked[:5]
+        msgs = [humanized_fund_card(a, kind="top") for a in top5]
         if self._source_note() and msgs:
             msgs[0] = self._source_note() + msgs[0]
         self.telegram.send_messages(msgs, chat_id=chat_id, reply_markup_last=after_report_keyboard())
@@ -340,7 +367,7 @@ class SandoghchiBot:
         ranked = self._get_ranked()
         # ensure true bottom
         worst = list(reversed(ranked[-5:])) if len(ranked) >= 5 else list(reversed(ranked))
-        msgs = [format_fund_card(a, kind="worst") for a in worst]
+        msgs = [humanized_fund_card(a, kind="worst") for a in worst]
         if self._source_note() and msgs:
             msgs[0] = self._source_note() + msgs[0]
         # hard check scores
@@ -416,7 +443,8 @@ class SandoghchiBot:
     def _cmd_portfolio(self, chat_id: str, uid: str) -> None:
         ranked = self._get_ranked()
         prices = {a.symbol: float(a.last_price or a.close_price or 0) for a in ranked if a.last_price or a.close_price}
-        text = self.portfolio.portfolio_summary_text(uid, prices=prices)
+        pf = self.portfolio.get_portfolio(uid)
+        text = humanized_portfolio_report(pf["items"], prices, pf["user"])
         self._reply(chat_id, text, reply_markup=after_report_keyboard())
 
     def _cmd_pf_add(self, chat_id: str, uid: str, args: str) -> None:
@@ -480,6 +508,42 @@ class SandoghchiBot:
         summary = build_market_summary(ranked)
         logger.info("ranked source=%s n=%s power=%s best=%s top=%.1f worst=%.1f", source, len(ranked), summary.market_power, summary.best_group, ranked[0].final_score if ranked else -1, ranked[-1].final_score if ranked else -1)
         return ranked
+
+
+    # ---- onboarding helpers ----
+    def _start_onboarding(self, chat_id: str, uid: str) -> None:
+        self._onboarding_state[uid] = 0
+        self._send_onboarding_step(chat_id, uid, 0)
+
+    def _send_onboarding_step(self, chat_id: str, uid: str, step_index: int) -> None:
+        if step_index >= len(ONBOARDING_STEPS):
+            if uid in self._onboarding_state:
+                del self._onboarding_state[uid]
+            u = self.portfolio.ensure_user(uid)
+            name = u.get("first_name") or "سرمایه‌گذار"
+            self._reply(chat_id, onboarding_complete_message(name), reply_markup=main_menu_keyboard())
+            return
+        text = onboarding_question(step_index)
+        keyboard = onboarding_keyboard(step_index)
+        if keyboard:
+            self._reply(chat_id, text, reply_markup=keyboard)
+        else:
+            self._reply(chat_id, text)
+
+    def _handle_onboarding_callback(self, chat_id: str, data: str, uid: str, user: dict) -> None:
+        parsed = parse_onboarding_response(data)
+        if not parsed:
+            return
+        key, value = parsed
+        if key == "experience":
+            pass  # informational only for now
+        elif key == "risk":
+            self.portfolio.update_profile(uid, risk_profile=value)
+        elif key == "horizon":
+            self.portfolio.update_profile(uid, horizon_months=int(value))
+        current = self._onboarding_state.get(uid, 0)
+        self._onboarding_state[uid] = current + 1
+        self._send_onboarding_step(chat_id, uid, current + 1)
 
 
 def _parse_number(text: str) -> Optional[float]:

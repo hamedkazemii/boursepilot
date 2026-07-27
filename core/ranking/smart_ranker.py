@@ -74,8 +74,6 @@ class SmartRanker:
         out: list[FundAssessment] = []
         for a in assessments:
             p = pct[a.symbol]
-            final = 0.0
-            tw = 0.0
             factor_rows: list[FactorScore] = []
             # keep original factors + add smart ones
             factor_rows.extend(list(a.factors))
@@ -87,8 +85,6 @@ class SmartRanker:
             }
             for k, w in self.weights.items():
                 score = p[k]
-                final += score * w
-                tw += w
                 if k in labels:
                     factor_rows.append(
                         FactorScore(
@@ -100,9 +96,9 @@ class SmartRanker:
                             metrics={"raw": comps[a.symbol][k], "percentile": score},
                         )
                     )
-            final = round(final / tw * 100.0 / 100.0, 2) if tw else 50.0
-            # p already 0..100
-            final = round(sum(p[k] * self.weights[k] for k in keys) / sum(self.weights.values()), 2)
+            # percentile-normalized smart score: weighted average of all component percentiles
+            tw = sum(self.weights.values())
+            final = round(sum(p[k] * self.weights[k] for k in keys) / tw, 2) if tw else 50.0
             rec, rec_label = self._recommend(final, indicators.get(a.symbol), a)
             reasons = self._build_reasons(a, p, comps[a.symbol], indicators.get(a.symbol), rec_label)
             out.append(

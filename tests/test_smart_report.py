@@ -90,10 +90,10 @@ class TestSmartReport(unittest.TestCase):
         self.assertEqual(len(tops), 5)
         self.assertEqual(len(worst), 5)
         self.assertIn("عیار", tops[0])
-        self.assertIn("چرا در برترین‌هاست", tops[0])
+        self.assertIn("چرا این صندوق جذاب است؟", tops[0])
         self.assertIn("صندوق برتر", tops[0])
         self.assertIn("صندوق ضعیف", worst[0])
-        self.assertIn("چرا در ضعیف‌هاست", worst[0])
+        self.assertIn("چرا این صندوق قابل تامل است؟", worst[0])
         self.assertIn("نقطه ضعف", worst[0])
 
     def test_build_smart_morning_message_count(self) -> None:

@@ -109,7 +109,7 @@ def build_smart_morning_messages(
 
 
 def format_fund_card(a: FundAssessment, *, kind: str) -> str:
-    # جایگزین کردن اصطلاحات فنی با عبارات ساده
+    product = settings.PRODUCT_NAME
     def _interpret_score(score: float) -> str:
         if score >= 80: return "فوق‌العاده جذاب"
         if score >= 60: return "جذاب"
@@ -124,6 +124,7 @@ def format_fund_card(a: FundAssessment, *, kind: str) -> str:
         if vol < 70: return "ریسک متوسط"
         return "پرریسک"
 
+    product = settings.PRODUCT_NAME
     header = f"🏆 {product} | صندوق برتر #{a.rank or '-'}" if kind == "top" else f"⚠️ {product} | صندوق ضعیف #{a.rank or '-'}"
     
     lines = [

@@ -1,8 +1,3 @@
-"""
-ردیابی سلامت سرویس‌دهنده‌های داده.
-برای مدیریت وضعیت Circuit Breaker.
-"""
-
 import threading
 import logging
 from typing import Dict
@@ -28,7 +23,8 @@ class ProviderHealth:
                 self.stats[provider_name] = {"failures": 0, "open": False}
             
             self.stats[provider_name]["failures"] += 1
-            if self.stats[provider_name]["failures"] >= 5: # Threshold from config
+            # Threshold: 5 failures to open circuit breaker
+            if self.stats[provider_name]["failures"] >= 5:
                 self.stats[provider_name]["open"] = True
                 logger.error("Provider %s circuit breaker opened.", provider_name)
 
