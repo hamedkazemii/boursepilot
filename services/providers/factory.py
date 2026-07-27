@@ -51,14 +51,16 @@ def get_market_data_provider(name: Optional[str] = None) -> MarketDataProvider:
     2. brs — اگر BRS_API_KEY معتبر باشد
     3. demo — در غیر این صورت (بدون کرش)
     """
-    requested = (name or settings.MARKET_DATA_PROVIDER or "auto").strip().lower()
+    requested = (name or os.getenv("MARKET_DATA_PROVIDER") or settings.MARKET_DATA_PROVIDER or "auto").strip().lower()
     logger.info("creating market data provider (requested=%s)", requested)
 
     # اگر gateway مشخص شده یا auto و Gateway URL موجود است
     if requested in {"gateway", "auto"}:
         if settings.MARKET_GATEWAY_URL:
             try:
-                provider = MarketGatewayProvider()
+                provider = MarketGatewayProvider(
+    client=MarketGatewayClient()
+)
                 if provider.is_available:
                     logger.info("provider selected: gateway (%s)", settings.MARKET_GATEWAY_URL)
                     return provider

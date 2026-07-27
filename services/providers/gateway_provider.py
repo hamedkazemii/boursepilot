@@ -30,12 +30,6 @@ class MarketGatewayProvider:
 
     def __init__(self, client: Optional[MarketGatewayClient] = None) -> None:
         self.client = client
-        if self.client is None:
-            try:
-                self.client = MarketGatewayClient()
-            except ProviderConfigError:
-                logger.warning("Gateway URL تنظیم نشده — provider غیرفعال می‌شود")
-                self.client = None
 
     @property
     def is_available(self) -> bool:
