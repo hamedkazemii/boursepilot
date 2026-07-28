@@ -1,0 +1,84 @@
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi import FastAPI
+from services.providers.brs_provider import BrsProvider
+
+app=FastAPI(
+    title="BoursePilot Market Gateway"
+)
+
+
+
+app.add_middleware(
+    GZipMiddleware,
+    minimum_size=1000
+)
+
+
+provider=BrsProvider()
+
+
+@app.get("/health")
+def health():
+    return {
+        "status":"ok",
+        "service":"market-gateway"
+    }
+
+
+@app.get("/symbols")
+def symbols():
+
+    rows = provider.get_all_symbols()
+
+    return [
+        x.to_dict()
+        for x in rows
+    ]
+
+
+
+@app.get("/symbol")
+def symbol_query(l18: str):
+    return symbol(l18)
+
+@app.get("/funds")
+def funds():
+
+    rows = provider.get_fund_symbols()
+
+    return [
+        x.to_dict()
+        for x in rows
+    ]
+
+
+
+@app.get("/symbol/{symbol}")
+def symbol(symbol: str):
+    """
+    Return symbol from gateway market cache.
+    Avoid direct BRS Symbol.php call.
+    """
+
+    rows = provider.get_all_symbols()
+
+    for item in rows:
+        if getattr(item, "symbol", None) == symbol:
+            return item.to_dict()
+
+    from fastapi import HTTPException
+
+    raise HTTPException(
+        status_code=404,
+        detail=f"Symbol {symbol} not found"
+    )
+
+
+@app.get("/nav")
+def nav(l18: str):
+    return {"error":"NAV endpoint not implemented"}
+
+@app.get("/shareholders")
+def shareholders(l18: str):
+    return {"error":"shareholders endpoint not implemented"}
+
