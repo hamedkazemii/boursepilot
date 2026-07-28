@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import Optional
 
 from config import settings
@@ -51,16 +52,30 @@ def get_market_data_provider(name: Optional[str] = None) -> MarketDataProvider:
     2. brs — اگر BRS_API_KEY معتبر باشد
     3. demo — در غیر این صورت (بدون کرش)
     """
+    market_gateway_url = os.getenv(
+        "MARKET_GATEWAY_URL",
+        settings.MARKET_GATEWAY_URL
+    )
+
+    brs_api_key = os.getenv(
+        "BRS_API_KEY",
+        settings.BRS_API_KEY
+    )
+
     requested = (name or settings.MARKET_DATA_PROVIDER or "auto").strip().lower()
-    logger.info("creating market data provider (requested=%s)", requested)
+
+    logger.info(
+        "creating market data provider (requested=%s)",
+        requested
+    )
 
     # اگر gateway مشخص شده یا auto و Gateway URL موجود است
     if requested in {"gateway", "auto"}:
-        if settings.MARKET_GATEWAY_URL:
+        if market_gateway_url:
             try:
                 provider = MarketGatewayProvider()
                 if provider.is_available:
-                    logger.info("provider selected: gateway (%s)", settings.MARKET_GATEWAY_URL)
+                    logger.info("provider selected: gateway (%s)", market_gateway_url)
                     return provider
             except Exception as exc:  # noqa: BLE001
                 logger.warning("gateway init failed: %s", exc)
@@ -69,7 +84,7 @@ def get_market_data_provider(name: Optional[str] = None) -> MarketDataProvider:
 
     # BRS fallback
     if requested in {"brs", "brsapi", "brs_api", "auto"}:
-        if settings.BRS_API_KEY and settings.BRS_API_KEY != "***":
+        if brs_api_key and brs_api_key != "***":
             try:
                 provider = BrsProvider()
                 logger.info("provider selected: brs")
@@ -88,7 +103,7 @@ def get_provider_status() -> dict:
     """وضعیت providerها برای نمایش در status/debug."""
     return {
         "gateway": {
-            "configured": bool(settings.MARKET_GATEWAY_URL),
+            "configured": bool(market_gateway_url),
             "url": settings.MARKET_GATEWAY_URL or None,
         },
         "brs": {

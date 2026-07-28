@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import os
+
 import logging
 from typing import Any, Mapping, Optional
 from urllib.parse import urljoin
@@ -29,7 +31,12 @@ class MarketGatewayClient:
         timeout: Optional[float] = None,
         session: Optional[requests.Session] = None,
     ) -> None:
-        self.base_url = (base_url or settings.MARKET_GATEWAY_URL or "").rstrip("/") + "/"
+        self.base_url = (
+            base_url
+            or os.getenv("MARKET_GATEWAY_URL")
+            or settings.MARKET_GATEWAY_URL
+            or ""
+        ).rstrip("/") + "/"
         self.token = (token or settings.MARKET_GATEWAY_TOKEN or "").strip()
         self.timeout = float(timeout if timeout is not None else settings.GATEWAY_TIMEOUT_SECONDS)
 
