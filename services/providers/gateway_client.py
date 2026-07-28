@@ -45,7 +45,7 @@ class MarketGatewayClient:
             or ""
         ).rstrip("/") + "/"
         self.token = (token or settings.MARKET_GATEWAY_TOKEN or "").strip()
-        self.timeout = float(timeout if timeout is not None else settings.GATEWAY_TIMEOUT_SECONDS)
+        self.timeout = float(timeout if timeout is not None else max(max(settings.GATEWAY_TIMEOUT_SECONDS, 120), 60))
 
         if not self.base_url or self.base_url == "/":
             raise ProviderConfigError(
@@ -54,6 +54,10 @@ class MarketGatewayClient:
             )
 
         self.session = session or requests.Session()
+
+        self.session.headers.update({
+            "Accept-Encoding": "gzip, deflate"
+        })
         self.session.headers.update({
             "Accept": "application/json,text/plain,*/*",
             "Accept-Language": "fa-IR,fa;q=0.9",

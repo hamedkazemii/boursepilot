@@ -44,17 +44,38 @@ class MarketGatewayProvider:
         params: dict[str, Any] = {}
         if symbol_type is not None:
             params["type"] = symbol_type
-        payload = self._request("symbols", params=params)
-        rows = self._ensure_list(payload, context="symbols")
-        quotes: list[SymbolQuote] = []
-        for row in rows:
-            if not isinstance(row, dict):
-                continue
-            try:
-                quotes.append(map_symbol_quote(row))
-            except Exception as exc:  # noqa: BLE001
-                logger.exception("skip bad symbol row: %s", exc)
-        logger.info("Gateway all_symbols mapped=%s", len(quotes))
+
+        page=1
+        page_size=1000
+
+        quotes=[]
+
+        while True:
+
+            request_params=params.copy()
+            request_params["page"]=page
+            request_params["page_size"]=page_size
+
+            payload=self._request("symbols",params=request_params)
+
+            rows=self._ensure_list(payload,context="symbols")
+
+            logger.info("Gateway page=%s rows=%s",page,len(rows))
+
+            for row in rows:
+                if not isinstance(row,dict):
+                    continue
+                try:
+                    quotes.append(map_symbol_quote(row))
+                except Exception as exc:
+                    logger.exception("skip bad symbol row: %s",exc)
+
+            if len(rows)<page_size:
+                break
+
+            page+=1
+
+        logger.info("Gateway total=%s",len(quotes))
         return quotes
 
     def get_fund_symbols(self, symbol_type: Optional[int] = None) -> list[SymbolQuote]:
@@ -67,7 +88,7 @@ class MarketGatewayProvider:
         symbol_n = normalize_symbol(symbol)
         if not symbol_n:
             raise ProviderNotFoundError("symbol خالی است")
-        payload = self._request("symbol", params={"l18": symbol_n})
+        payload = self._request(f"symbol/{symbol_n}")
         if isinstance(payload, list):
             if not payload:
                 raise ProviderNotFoundError(f"نماد پیدا نشد: {symbol_n}")

@@ -1,3 +1,6 @@
+
+from __future__ import annotations
+import os
 """ساخت provider فعال از روی تنظیمات — با پشتیبانی Gateway و Demo Mode.
 
 اولویت:
@@ -6,7 +9,6 @@
 3. demo — اگر هیچ‌کدام در دسترس نباشد (بدون کرش)
 """
 
-from __future__ import annotations
 
 import logging
 from typing import Optional
@@ -16,6 +18,7 @@ from services.providers.base import MarketDataProvider
 from services.providers.brs_provider import BrsProvider
 from services.providers.exceptions import ProviderConfigError
 from services.providers.gateway_provider import MarketGatewayProvider
+from services.providers.gateway_client import MarketGatewayClient
 
 logger = logging.getLogger(__name__)
 
@@ -59,8 +62,8 @@ def get_market_data_provider(name: Optional[str] = None) -> MarketDataProvider:
         if settings.MARKET_GATEWAY_URL:
             try:
                 provider = MarketGatewayProvider(
-    client=MarketGatewayClient()
-)
+                    client=MarketGatewayClient()
+                )
                 if provider.is_available:
                     logger.info("provider selected: gateway (%s)", settings.MARKET_GATEWAY_URL)
                     return provider
