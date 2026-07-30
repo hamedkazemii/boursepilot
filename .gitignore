@@ -13,3 +13,17 @@ reports/
 
 # Local logs
 *.log
+
+# runtime backups
+*.backup.*
+*.bak
+*.before-*
+*.pagination-backup.py
+
+# env backups
+.env.backup.*
+.env.gateway
+
+# agent runtime
+.agent/
+

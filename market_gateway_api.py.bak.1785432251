@@ -16,20 +16,6 @@ app.add_middleware(
 
 provider=get_market_data_provider()
 
-_SYMBOL_CACHE = None
-
-def get_symbols_cached():
-
-    global _SYMBOL_CACHE
-
-    if _SYMBOL_CACHE is None:
-        print("LOADING SYMBOL CACHE...")
-        _SYMBOL_CACHE = provider.get_all_symbols()
-        print("CACHE SIZE:", len(_SYMBOL_CACHE))
-
-    return _SYMBOL_CACHE
-
-
 
 @app.get("/health")
 def health():
@@ -40,11 +26,9 @@ def health():
 
 
 @app.get("/symbols")
-def symbols(limit: int = 100, offset: int = 0):
+def symbols():
 
-    rows = get_symbols_cached()
-
-    rows = rows[offset:offset+limit]
+    rows = provider.get_all_symbols()
 
     return [
         x.to_dict()
@@ -76,7 +60,7 @@ def symbol(symbol: str):
     Avoid direct BRS Symbol.php call.
     """
 
-    rows = get_symbols_cached()
+    rows = provider.get_all_symbols()
 
     for item in rows:
         if getattr(item, "symbol", None) == symbol:
