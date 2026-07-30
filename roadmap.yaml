@@ -1,0 +1,8 @@
+current_sprint: "Sprint B - Real-Time Intelligence"
+tasks:
+  - id: 1
+    name: "Foundation"
+    status: "done"
+  - id: 2
+    name: "Real-time scanner"
+    status: "in-progress"

@@ -16,11 +16,9 @@ from urllib.parse import urljoin
 import requests
 
 from config import settings
-from services.providers.exceptions import (
-    ProviderAuthError,
-    ProviderConfigError,
-    ProviderHTTPError,
-)
+from services.providers.exceptions import ProviderAuthError, ProviderConfigError, ProviderHTTPError
+from services.providers.reliability import reliable_provider
+from services.snapshot.store import SnapshotStore
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +46,7 @@ class BrsClient:
             )
 
         self.session = session or requests.Session()
+        self.snapshot_store = SnapshotStore()
         ua = user_agent or settings.BRS_USER_AGENT
         self.session.headers.update(
             {
@@ -61,6 +60,7 @@ class BrsClient:
         endpoint = endpoint.lstrip("/")
         return urljoin(self.base_url, endpoint)
 
+    @reliable_provider("brs_api")
     def get_json(
         self,
         endpoint: str,
@@ -68,8 +68,6 @@ class BrsClient:
     ) -> Any:
         """
         درخواست GET و پارس JSON.
-
-        همیشه key به query اضافه می‌شود.
         """
         query: dict[str, Any] = {"key": self.api_key}
         if params:
@@ -79,33 +77,12 @@ class BrsClient:
                 query[k] = v
 
         url = self._url(endpoint)
-        last_error: Exception | None = None
+        response = self.session.get(url, params=query, timeout=self.timeout)
+        return self._parse_response(response, endpoint=endpoint)
 
-        attempts = max(1, self.max_retries + 1)
-        for attempt in range(1, attempts + 1):
-            try:
-                logger.debug("BRS GET %s attempt=%s params=%s", endpoint, attempt, list(query))
-                response = self.session.get(url, params=query, timeout=self.timeout)
-                return self._parse_response(response, endpoint=endpoint)
-            except ProviderAuthError:
-                raise
-            except (ProviderHTTPError, requests.RequestException) as exc:
-                last_error = exc
-                logger.warning(
-                    "BRS request failed endpoint=%s attempt=%s/%s error=%s",
-                    endpoint,
-                    attempt,
-                    attempts,
-                    exc,
-                )
-                if attempt < attempts:
-                    time.sleep(min(1.5 * attempt, 4.0))
-                    continue
-                break
-
-        if isinstance(last_error, ProviderHTTPError):
-            raise last_error
-        raise ProviderHTTPError(f"BRS request failed for {endpoint}: {last_error}")
+    def fallback_get_json(self, endpoint: str, params: Optional[Mapping[str, Any]] = None) -> Any:
+        logger.info("Attempting fallback for endpoint: %s", endpoint)
+        return self.snapshot_store.load_json(endpoint.replace('/', '_'))
 
     def _parse_response(self, response: requests.Response, endpoint: str) -> Any:
         status = response.status_code
