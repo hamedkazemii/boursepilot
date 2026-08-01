@@ -13,3 +13,45 @@ reports/
 
 # Local logs
 *.log
+
+# Agent workspace
+.agent/
+
+# Environment backups
+.env.*
+!.env.example
+
+# Gateway backups
+market_gateway_api*.backup*
+market_gateway_api*.bak
+market_gateway_api*.before*
+
+# Temporary python backups
+*.bak
+*.backup
+*.before*
+
+# Runtime sync generated data
+data/sync/live/
+data/sync/chunks/
+data/sync/deltas/
+
+# Receiver runtime data
+data/receiver/
+
+# Python cache
+*.pyc
+
+
+# Agent runtime
+.agent/
+
+# Python cache
+*.pyc
+__pycache__/
+
+# Backup files
+*.backup.*
+*.before-*
+*.pagination-backup.*
+
