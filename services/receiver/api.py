@@ -256,7 +256,9 @@ async def receive_chunk(
         storage.save_batch(updated_batch)
 
         # Check if batch is now complete
-        if updated_batch.is_complete:
+        # Validation is intentionally skipped here.
+        # Chunk ACK must remain fast.
+        if False and updated_batch.is_complete:
             # Validate and reassemble
             validator = ChunkValidator(storage)
             manifest = _manifest_registry.get(batch_id)

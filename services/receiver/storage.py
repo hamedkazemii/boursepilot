@@ -165,9 +165,19 @@ class ReceiverStorage:
         chunks: dict[int, ReceivedChunk] = {}
         for num_str, chunk_data in chunks_data.items():
             if isinstance(chunk_data, dict):
-                payload = chunk_data.get("payload", b"")
-                if isinstance(payload, str):
-                    payload = payload.encode("utf-8")
+                # Payload is stored separately as binary chunk files.
+                # Batch metadata JSON must never contain binary payload.
+                chunk_file = (
+                    self.chunks_dir
+                    / chunk_data.get("batch_id", d["batch_id"])
+                    / f"{chunk_data.get('chunk_number', int(num_str))}.bin"
+                )
+
+                payload = b""
+
+                if chunk_file.exists():
+                    with open(chunk_file, "rb") as cf:
+                        payload = cf.read()
                 chunk = ReceivedChunk(
                     batch_id=chunk_data.get("batch_id", d["batch_id"]),
                     chunk_number=chunk_data.get("chunk_number", int(num_str)),
