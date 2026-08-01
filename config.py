@@ -26,6 +26,13 @@ def _env_float(name: str, default: float) -> float:
     return float(raw)
 
 
+def _env_bool(key: str, default: bool = False) -> bool:
+    value = os.getenv(key)
+    if value is None:
+        return default
+    return value.lower() in ("1", "true", "yes", "on")
+
+
 def _env_int(name: str, default: int) -> int:
     raw = _env(name, "")
     if not raw:
@@ -72,6 +79,14 @@ class Settings:
     BRS_ALL_SYMBOLS_TYPE: int = _env_int("BRS_ALL_SYMBOLS_TYPE", 1)
 
     # provider فعال برای لایه داده بازار
+
+    
+    # Sync Configuration
+    SYNC_ENABLED: bool = _env_bool("SYNC_ENABLED", False)
+    SYNC_TARGET_URL: str = _env("SYNC_TARGET_URL", "")
+    SYNC_API_KEY: str = _env("SYNC_API_KEY", "")
+    SYNC_RECEIVER_ENABLED: bool = _env_bool("SYNC_RECEIVER_ENABLED", False)
+
     MARKET_DATA_PROVIDER: str = _env("MARKET_DATA_PROVIDER", "brs")
 
     # --- Snapshot / ranking ---
