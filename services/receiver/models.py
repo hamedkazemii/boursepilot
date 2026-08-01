@@ -101,7 +101,14 @@ class ReceivedBatch:
             "target": self.target,
             "created_at": self.created_at,
             "chunks": {
-                str(num): chunk.to_dict()
+                str(num): {
+                    "batch_id": chunk.batch_id,
+                    "chunk_number": chunk.chunk_number,
+                    "checksum": chunk.checksum,
+                    "received_at": chunk.received_at,
+                    "source": chunk.source,
+                    "payload_size": len(chunk.payload),
+                }
                 for num, chunk in sorted(self.chunks.items())
             },
             "chunk_count": len(self.chunks),
