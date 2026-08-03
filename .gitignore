@@ -13,3 +13,26 @@ reports/
 
 # Local logs
 *.log
+
+# runtime artifacts
+*.bak
+*.backup*
+*.final*
+*.stable*
+*.pyc
+__pycache__/
+.pytest_cache/
+
+# agent artifacts
+agentshire*
+12.0.2
+tsc
+echo
+
+# runtime data
+data/history/*.json
+data/receiver/
+
+# environment backups
+.env.*backup*
+
