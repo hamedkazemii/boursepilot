@@ -19,6 +19,13 @@ class MockMarketGateway:
 
     def get_json(self, endpoint: str, params: dict[str, Any] | None = None) -> Any:
         params = params or {}
+        # Handle path parameter style: "symbol/عیار" or "symbol/یاقوت"
+        if endpoint.startswith("symbol/"):
+            sym = endpoint.split("/", 1)[1]
+            for s in self._symbols:
+                if s.symbol == sym:
+                    return self._symbol_to_dict(s)
+            return {"error": "not found"}
         if endpoint == "symbols":
             return [self._symbol_to_dict(s) for s in self._symbols]
         if endpoint == "symbol":
