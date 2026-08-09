@@ -1,4 +1,8 @@
-"""ربات صندوقچی: رنکینگ روندی + پروفایل/پرتفو + مشاور AI."""
+"""ربات صندوقچی — بازطراحی بر اساس سند هویت برند.
+
+User = Hero, Sandoghchi = Guide | AI = Decision Assistant | DATA → ANALYSIS → INSIGHT
+Iran Market First | Trust First | Explainability First | No Hype
+"""
 
 from __future__ import annotations
 
@@ -11,7 +15,10 @@ from config import settings
 from core.ai.advisor import AIAdvisor
 from core.analytics.market_summary import build_market_summary
 from core.classification.fund_type import classify_fund_type
-from core.preopen.analyzer import PreopenAnalyzer
+from core.database.connection import get_database
+from core.market.hours import current_session, MarketSession, SessionName
+from core.market.taxonomy import FundCategory, classify_fund_category as categorize_fund, get_category_config
+from core.pipeline.daily_analysis import DailyAnalysisPipeline
 from core.scoring.models import FundAssessment
 from core.scoring.score_engine import ScoreEngine
 from services.discovery.fund_catalog import FundCatalogService
@@ -20,38 +27,28 @@ from services.providers.exceptions import ProviderError
 from services.providers.factory import get_market_data_provider
 from services.snapshot.store import SnapshotStore
 from services.telegram import TelegramService
-from services.telegram.beta_onboarding import (
-    ONBOARDING_STEPS,
-    onboarding_complete_message,
-    onboarding_keyboard,
-    onboarding_question,
-    parse_onboarding_response,
-)
-from services.telegram.investor_report import (
-    humanized_fund_card,
-    humanized_market_summary,
-    humanized_portfolio_report,
+from services.telegram.brand_messaging import (
+    build_brand_message,
+    format_ai_advice_brand,
+    format_category_report_brand,
+    format_fund_card_brand,
+    format_fund_deepdive_brand,
+    format_home_brand,
+    format_market_brief_brand,
+    format_portfolio_brand,
 )
 from services.telegram.keyboards import (
     after_report_keyboard,
+    category_detail_keyboard,
     fund_actions_keyboard,
     help_text,
+    horizon_keyboard,
     main_menu_keyboard,
     onboarding_start_keyboard,
+    portfolio_actions_keyboard,
+    risk_profile_keyboard,
 )
 from services.telegram.rank_loader import get_cached_payload, load_rankings
-from services.telegram.smart_report import (
-    build_smart_morning_messages,
-    format_fund_card,
-    format_market_summary_telegram,
-    format_top_fund_messages,
-    format_worst_fund_messages,
-)
-from services.telegram_publisher import (
-    format_fund_telegram,
-    format_preopen_telegram,
-    format_ranking_telegram,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -163,15 +160,8 @@ class SandoghchiBot:
         # onboarding capital input
         if uid in self._onboarding_state:
             current_step = self._onboarding_state[uid]
-            if current_step < len(ONBOARDING_STEPS) and ONBOARDING_STEPS[current_step].get("input"):
-                num = _parse_number(text)
-                if num is not None and num > 0:
-                    self.portfolio.update_profile(uid, capital=num)
-                    self._onboarding_state[uid] = current_step + 1
-                    self._send_onboarding_step(chat_id, uid, current_step + 1)
-                else:
-                    self._reply(chat_id, "❌ لطفاً یک عدد معتبر وارد کنید.\nمثال: ۵۰۰۰۰۰۰۰ یا ۵۰ میلیون")
-                return
+            # onboarding steps don't have numeric input in current flow
+            return
         if uid in self._awaiting_ask or chat.get("type") == "private":
             self._awaiting_ask.discard(uid)
             self._cmd_ask(chat_id, text, user=user)
@@ -202,6 +192,15 @@ class SandoghchiBot:
             elif data.startswith("fund:"):
                 sym = data.split(":", 1)[1]
                 self._reply(target, self._cmd_fund(sym), reply_markup=fund_actions_keyboard(sym))
+            elif data.startswith("fund_history:"):
+                sym = data.split(":", 1)[1]
+                self._reply(target, self._cmd_fund_history(sym), reply_markup=fund_actions_keyboard(sym))
+            elif data.startswith("fund_compare:"):
+                sym = data.split(":", 1)[1]
+                self._reply(target, self._cmd_fund_compare(sym), reply_markup=fund_actions_keyboard(sym))
+            elif data.startswith("fund_backtest:"):
+                sym = data.split(":", 1)[1]
+                self._reply(target, self._cmd_fund_backtest(sym), reply_markup=fund_actions_keyboard(sym))
             elif data.startswith("watch:"):
                 sym = data.split(":", 1)[1]
                 self.portfolio.add_watch(user_id or target, sym)
@@ -210,9 +209,19 @@ class SandoghchiBot:
                 sym = data.split(":", 1)[1]
                 self._reply(
                     target,
-                    f"برای افزودن {sym} بفرستید:\n/pf_add {sym} <تعداد> [قیمت‌خرید]",
+                    f"برای افزودن {sym} بفرستید:\\n/pf_add {sym} <تعداد> [قیمت‌خرید]",
                     reply_markup=main_menu_keyboard(),
                 )
+            elif data.startswith("cat_best:"):
+                cat = data.split(":", 1)[1].replace("_", " ")
+                meta = get_cached_payload()
+                self._reply(target, self._cmd_category_best(cat, meta), reply_markup=category_detail_keyboard(cat))
+            elif data.startswith("cat_all:"):
+                cat = data.split(":", 1)[1].replace("_", " ")
+                self._reply(target, self._cmd_category_all(cat), reply_markup=category_detail_keyboard(cat))
+            elif data.startswith("cat_compare:"):
+                cat = data.split(":", 1)[1].replace("_", " ")
+                self._reply(target, self._cmd_category_compare(cat), reply_markup=category_detail_keyboard(cat))
             elif data.startswith("onboard:"):
                 self._handle_onboarding_callback(target, data, user_id or target, user)
             elif data == "cmd:onboarding_start":
@@ -220,7 +229,7 @@ class SandoghchiBot:
             elif data == "cmd:search_prompt":
                 self._reply(target, "برای جستجو، نام یا بخشی از نماد صندوق را بفرستید (مثال: عیار)", reply_markup=main_menu_keyboard())
             elif data == "cmd:coming_soon":
-                self._reply(target, "این قابلیت در نسخه‌های آینده (Sprint B) اضافه خواهد شد.", reply_markup=main_menu_keyboard())
+                self._reply(target, "این قابلیت در نسخه‌های آینده اضافه خواهد شد.", reply_markup=main_menu_keyboard())
             else:
                 self._reply(target, "دکمه ناشناخته", reply_markup=main_menu_keyboard())
         except Exception as exc:  # noqa: BLE001
@@ -238,7 +247,7 @@ class SandoghchiBot:
         uid = str(user.get("id") or chat_id)
         logger.info("cmd /%s chat=%s", cmd, chat_id)
         try:
-            if cmd in {"start", "menu"}:
+            if cmd in {"start", "menu", "home"}:
                 self.portfolio.ensure_user(uid, username=user.get("username") or "", first_name=user.get("first_name") or "")
                 u = self.portfolio.ensure_user(uid)
                 if not u.get("risk_profile"):
@@ -248,36 +257,47 @@ class SandoghchiBot:
                     )
                     self._reply(chat_id, welcome, reply_markup=onboarding_start_keyboard())
                 else:
-                    self._reply(chat_id, f"خوش برگشتید! 👋\n{settings.PRODUCT_NAME} آماده است.", reply_markup=main_menu_keyboard())
+                    self._send_home(chat_id, uid)
             elif cmd == "help":
                 self._reply(chat_id, help_text(), reply_markup=main_menu_keyboard())
-            elif cmd == "today":
-                self._send_today(chat_id)
-            elif cmd == "top":
-                self._send_top(chat_id)
-            elif cmd == "worst":
-                self._send_worst(chat_id)
-            elif cmd == "rank":
-                ranked = self._get_ranked()
-                self._reply(chat_id, self._source_note() + format_ranking_telegram(ranked), reply_markup=after_report_keyboard())
-            elif cmd == "market":
-                self._send_market(chat_id)
-            elif cmd == "preopen":
-                self._send_preopen(chat_id)
-            elif cmd == "gold":
-                self._send_group(chat_id, "طلا")
-            elif cmd == "fixed":
-                self._send_group(chat_id, "درآمد ثابت")
-            elif cmd == "stock":
-                self._send_group(chat_id, "سهامی")
-            elif cmd == "leverage":
-                self._send_group(chat_id, "اهرم")
+            elif cmd == "morning_brief":
+                self._send_morning_brief(chat_id)
+            elif cmd == "today_top":
+                self._send_today_top(chat_id)
+            elif cmd == "today_worst":
+                self._send_today_worst(chat_id)
+            elif cmd == "market_now":
+                self._send_market_now(chat_id)
+            elif cmd == "my_portfolio":
+                self._send_my_portfolio(chat_id, uid)
+            elif cmd == "fund_search":
+                self._reply(chat_id, "نام یا نماد صندوق را بفرستید (مثال: عیار یا ۱۲۳۴۵۶۷۸۹۰)", reply_markup=main_menu_keyboard())
+                self._awaiting_ask.add(uid)  # reuse for fund search
+            elif cmd == "category_best":
+                self._send_category_best(chat_id)
+            elif cmd == "group":
+                if not args:
+                    self._reply(chat_id, "مثال: /group طلا", reply_markup=main_menu_keyboard())
+                    return
+                self._send_group(chat_id, args.strip())
+            elif cmd == "my_watchlist":
+                items = self.portfolio.list_watch(uid)
+                text = "⭐ پیگیری‌های شما:\n" + ("\n".join(f"• {x}" for x in items) if items else "خالی")
+                self._reply(chat_id, text, reply_markup=after_report_keyboard())
+            elif cmd == "ask":
+                if not args:
+                    self._awaiting_ask.add(uid)
+                    self._reply(chat_id, "سوال خود را بفرستید.\nمثال: ۵۰ میلیون ریسک کم یک‌ساله")
+                    return
+                self._cmd_ask(chat_id, args, user=user)
+            elif cmd == "my_profile":
+                self._cmd_profile(chat_id, uid)
             elif cmd == "refresh":
                 self._ranked_cache = []
                 self._ranked_at = 0
                 self._reply(chat_id, "در حال بروزرسانی…")
                 self._get_ranked(force=True)
-                self._send_today(chat_id)
+                self._send_morning_brief(chat_id)
             elif cmd == "fund":
                 if not args:
                     self._reply(chat_id, "مثال: /fund عیار", reply_markup=main_menu_keyboard())
@@ -299,7 +319,7 @@ class SandoghchiBot:
                 self.portfolio.update_profile(uid, capital=num)
                 self._reply(chat_id, f"سرمایه ثبت شد: {num:,.0f}", reply_markup=main_menu_keyboard())
             elif cmd in {"portfolio", "pf"}:
-                self._cmd_portfolio(chat_id, uid)
+                self._send_my_portfolio(chat_id, uid)
             elif cmd in {"pf_add", "add"}:
                 self._cmd_pf_add(chat_id, uid, args)
             elif cmd in {"pf_del", "del"}:
@@ -317,103 +337,137 @@ class SandoghchiBot:
             elif cmd in {"watchlist", "watch"}:
                 items = self.portfolio.list_watch(uid)
                 self._reply(chat_id, "⭐ واچ‌لیست:\n" + ("\n".join(f"• {x}" for x in items) if items else "خالی"), reply_markup=main_menu_keyboard())
-            elif cmd in {"ask", "ai", "مشاور"}:
-                if not args:
-                    self._awaiting_ask.add(uid)
-                    self._reply(chat_id, "سوال خود را بفرستید.\nمثال: ۵۰ میلیون ریسک کم یک‌ساله")
-                    return
-                self._cmd_ask(chat_id, args, user=user)
+            elif cmd == "home":
+                self._send_home(chat_id, uid)
             else:
-                self._reply(chat_id, "دستور ناشناخته. /help", reply_markup=main_menu_keyboard())
+                self._reply(chat_id, "این درخواست را متوجه نشدم. 🤔\n\nمی‌توانید از گزینه‌های زیر استفاده کنید:", reply_markup=main_menu_keyboard())
         except Exception as exc:  # noqa: BLE001
             logger.exception("cmd failed: %s", exc)
             self._reply(chat_id, f"خطا: {exc}", reply_markup=main_menu_keyboard())
 
     # ---- sends ----
-    def _source_note(self) -> str:
-        if self._ranked_source == "live":
-            return ""
-        if self._ranked_source in {"offline", "demo", "snapshot"}:
-            return f"ℹ️ منبع داده: {self._ranked_source} (در صورت قطع BRS)\n\n"
-        return ""
-
-    def _send_today(self, chat_id: str) -> None:
-        self._reply(chat_id, "⏳ تحلیل روندی همه صندوق‌ها…")
+    def _send_home(self, chat_id: str, uid: str) -> None:
+        """نمایش صفحه اصلی (Home)."""
         ranked = self._get_ranked()
-        n = len(ranked)
-        top_n = 5 if n >= 10 else max(1, n // 2)
-        worst_n = 5 if n >= 10 else max(1, n // 2)
-        msgs = build_smart_morning_messages(ranked, meta=get_cached_payload(), top_n=top_n, worst_n=worst_n)
-        if self._source_note():
-            msgs[0] = self._source_note() + msgs[0]
-        # humanized summary as first message
-        if n >= 10:
-            gap = ranked[0].final_score - ranked[-1].final_score
-            up_count = sum(1 for a in ranked if (a.change_last_pct or 0) > 0)
-            down_count = n - up_count
-            avg_change = sum((a.change_last_pct or 0) for a in ranked) / n
-            msgs.insert(0, humanized_market_summary(ranked, up_count=up_count, down_count=down_count, avg_change=avg_change))
-        self.telegram.send_messages(msgs, chat_id=chat_id, reply_markup_last=after_report_keyboard())
+        meta = get_cached_payload()
+        u = self.portfolio.ensure_user(uid)
+        text = format_home_brand(ranked, meta, user_profile=u)
+        self._reply(chat_id, text, reply_markup=main_menu_keyboard())
 
-    def _send_top(self, chat_id: str) -> None:
+    def _send_morning_brief(self, chat_id: str) -> None:
+        """گزارش صبحانه کامل بازار (۰۸:۵۰)."""
+        self._reply(chat_id, "⏳ گزارش صبحانه بازار در حال تهیه…")
         ranked = self._get_ranked()
-        top5 = ranked[:5]
-        msgs = [humanized_fund_card(a, kind="top") for a in top5]
-        if self._source_note() and msgs:
-            msgs[0] = self._source_note() + msgs[0]
-        self.telegram.send_messages(msgs, chat_id=chat_id, reply_markup_last=after_report_keyboard())
+        meta = get_cached_payload()
+        text = format_market_brief_brand(ranked, meta)
+        keyboard = after_report_keyboard()
+        self._reply(chat_id, text, reply_markup=keyboard)
 
-    def _send_worst(self, chat_id: str) -> None:
+    def _send_today_top(self, chat_id: str) -> None:
+        """برترین‌های امروز با پیام‌سازی برند."""
         ranked = self._get_ranked()
-        # ensure true bottom
+        top_n = min(5, len(ranked))
+        messages = []
+        for a in ranked[:top_n]:
+            messages.append(format_fund_card_brand(a))
+        if messages:
+            self.telegram.send_messages(messages, chat_id=chat_id, reply_markup_last=after_report_keyboard())
+        else:
+            self._reply(chat_id, "داده‌ای برای نمایش وجود ندارد", reply_markup=after_report_keyboard())
+
+    def _send_today_worst(self, chat_id: str) -> None:
+        """ضعیف‌ترین‌های امروز."""
+        ranked = self._get_ranked()
         worst = list(reversed(ranked[-5:])) if len(ranked) >= 5 else list(reversed(ranked))
-        msgs = [humanized_fund_card(a, kind="worst") for a in worst]
-        if self._source_note() and msgs:
-            msgs[0] = self._source_note() + msgs[0]
-        # hard check scores
-        if ranked and worst and worst[0].final_score > ranked[0].final_score:
-            self._reply(chat_id, "خطای منطقی رتبه‌بندی شناسایی شد؛ در حال بازسازی…")
-            self._ranked_cache = []
-            ranked = self._get_ranked(force=True)
-            worst = list(reversed(ranked[-5:]))
-            msgs = [format_fund_card(a, kind="worst") for a in worst]
-        self.telegram.send_messages(msgs, chat_id=chat_id, reply_markup_last=after_report_keyboard())
+        messages = []
+        for a in worst:
+            messages.append(format_fund_card_brand(a))
+        if messages:
+            self.telegram.send_messages(messages, chat_id=chat_id, reply_markup_last=after_report_keyboard())
+        else:
+            self._reply(chat_id, "داده‌ای برای نمایش وجود ندارد", reply_markup=after_report_keyboard())
 
-    def _send_market(self, chat_id: str) -> None:
+    def _send_market_now(self, chat_id: str) -> None:
+        """تحلیل لحظه‌ای بازار."""
         ranked = self._get_ranked()
-        self._reply(chat_id, self._source_note() + format_market_summary_telegram(ranked, meta=get_cached_payload()), reply_markup=after_report_keyboard())
-
-    def _send_preopen(self, chat_id: str) -> None:
-        try:
-            if not self.provider:
-                raise RuntimeError("provider offline")
-            funds = FundCatalogService(provider=self.provider, store=self.store).discover()
-            types = {q.symbol: classify_fund_type(q) for q in funds}
-            signals = PreopenAnalyzer().rank(funds, fund_types=types)
-            text = format_preopen_telegram(signals)
-        except Exception as exc:  # noqa: BLE001
-            text = f"پیش‌گشایش در دسترس نیست: {exc}"
+        meta = get_cached_payload()
+        session = current_session()
+        text = format_market_brief_brand(ranked, meta, session=session)
         self._reply(chat_id, text, reply_markup=after_report_keyboard())
 
+    def _send_my_portfolio(self, chat_id: str, uid: str) -> None:
+        """تحلیل سبد کاربر."""
+        ranked = self._get_ranked()
+        prices = {a.symbol: float(a.last_price or a.close_price or 0) for a in ranked if a.last_price or a.close_price}
+        pf = self.portfolio.get_portfolio(uid)
+        u = self.portfolio.ensure_user(uid)
+        text = format_portfolio_brand(pf["items"], prices, u, ranked)
+        self._reply(chat_id, text, reply_markup=portfolio_actions_keyboard())
+
+    def _send_category_best(self, chat_id: str) -> None:
+        """بهترین هر دسته‌بندی."""
+        ranked = self._get_ranked()
+        meta = get_cached_payload()
+        # Group by category
+        categories = ["طلا", "درآمد ثابت", "سهامی", "اهرم", "مختلط"]
+        messages = []
+        for cat in categories:
+            cat_ranked = [a for a in ranked if cat in (a.fund_type or "")]
+            if cat_ranked:
+                msg = format_category_report_brand(cat, cat_ranked, meta)
+                messages.append(msg)
+        if messages:
+            self.telegram.send_messages(messages, chat_id=chat_id, reply_markup_last=after_report_keyboard())
+        else:
+            self._reply(chat_id, "داده دسته‌بندی وجود ندارد", reply_markup=after_report_keyboard())
+
     def _send_group(self, chat_id: str, fund_type: str) -> None:
+        """تحلیل یک گروه خاص."""
         ranked = [a for a in self._get_ranked() if fund_type in (a.fund_type or "")]
+        meta = get_cached_payload()
         if not ranked:
             self._reply(chat_id, f"گروه {fund_type} یافت نشد", reply_markup=main_menu_keyboard())
             return
-        lines = [f"📁 گروه {fund_type} | n={len(ranked)}", "🏆 برتر گروه:"]
-        for a in ranked[:5]:
+        text = format_category_report_brand(fund_type, ranked, meta)
+        keyboard = category_detail_keyboard(fund_type)
+        self._reply(chat_id, text, reply_markup=keyboard)
+
+    def _cmd_category_best(self, category: str, meta: dict) -> str:
+        ranked = self._get_ranked()
+        cat_ranked = [a for a in ranked if category in (a.fund_type or "")]
+        if not cat_ranked:
+            return f"داده برای دسته {category} وجود ندارد"
+        return format_category_report_brand(category, cat_ranked, meta)
+
+    def _cmd_category_all(self, category: str) -> str:
+        ranked = self._get_ranked()
+        cat_ranked = [a for a in ranked if category in (a.fund_type or "")]
+        if not cat_ranked:
+            return f"داده برای دسته {category} وجود ندارد"
+        lines = [f"📊 همه صندوق‌های {category} (n={len(cat_ranked)})"]
+        for a in cat_ranked[:10]:
             lines.append(f"{a.rank}. {a.symbol} | {a.final_score:.1f} | {a.recommendation_label}")
-        lines.append("⚠️ ضعیف گروه:")
-        for a in list(reversed(ranked[-3:])):
-            lines.append(f"{a.rank}. {a.symbol} | {a.final_score:.1f} | {a.recommendation_label}")
-        self._reply(chat_id, "\n".join(lines), reply_markup=after_report_keyboard())
+        if len(cat_ranked) > 10:
+            lines.append(f"... و {len(cat_ranked) - 10} صندوق دیگر")
+        return "\n".join(lines)
+
+    def _cmd_category_compare(self, category: str) -> str:
+        ranked = self._get_ranked()
+        cat_ranked = [a for a in ranked if category in (a.fund_type or "")]
+        if len(cat_ranked) < 2:
+            return f"برای مقایسه حداقل ۲ صندوق در دسته {category} نیاز است"
+        lines = [f"⚖️ مقایسه درونی {category}"]
+        for a in cat_ranked[:5]:
+            lines.append(f"{a.symbol}: امتیاز {a.final_score:.1f} | {a.recommendation_label}")
+        return "\n".join(lines)
 
     def _cmd_fund(self, symbol: str) -> str:
+        """تحلیل عمیق تک صندوق (Layer 1/2/3)."""
         symbol = symbol.strip()
         ranked = self._get_ranked()
         for a in ranked:
             if a.symbol == symbol or symbol in a.symbol or symbol in (a.name or ""):
-                return format_fund_telegram(a)
+                return format_fund_deepdive_brand(a)
         if self.provider:
             try:
                 q = self.provider.get_symbol(symbol)
@@ -422,9 +476,59 @@ class SandoghchiBot:
                     nav = self.provider.get_nav(symbol)
                 except ProviderError:
                     pass
-                return format_fund_telegram(self.engine.assess(q, nav=nav))
+                assessment = self.engine.assess(q, nav=nav)
+                return format_fund_deepdive_brand(assessment)
             except Exception as exc:  # noqa: BLE001
                 return f"خطا: {exc}"
+        return f"نماد {symbol} پیدا نشد"
+
+    def _cmd_fund_history(self, symbol: str) -> str:
+        """تاریخچه تحلیلی صندوق."""
+        ranked = self._get_ranked()
+        for a in ranked:
+            if a.symbol == symbol or symbol in a.symbol or symbol in (a.name or ""):
+                if a.advanced_metrics:
+                    history = a.advanced_metrics.get("history_summary", {})
+                    if history:
+                        lines = [f"📜 تاریخچه تحلیلی {symbol}"]
+                        for k, v in history.items():
+                            lines.append(f"• {k}: {v}")
+                        return "\n".join(lines)
+                return f"تاریخچه تحلیلی برای {symbol} موجود نیست (حداقل ۳۰ روز داده لازم است)"
+        return f"نماد {symbol} پیدا نشد"
+
+    def _cmd_fund_compare(self, symbol: str) -> str:
+        """مقایسه با هم‌گروه‌ها."""
+        ranked = self._get_ranked()
+        target = None
+        for a in ranked:
+            if a.symbol == symbol or symbol in a.symbol or symbol in (a.name or ""):
+                target = a
+                break
+        if not target:
+            return f"نماد {symbol} پیدا نشد"
+        cat_ranked = [a for a in ranked if target.fund_type and target.fund_type in (a.fund_type or "")]
+        if len(cat_ranked) < 2:
+            return "هم‌گروه کافی برای مقایسه وجود ندارد"
+        lines = [f"⚖️ مقایسه {target.symbol} با هم‌گروه ({target.fund_type})"]
+        for a in cat_ranked[:5]:
+            diff = a.final_score - target.final_score
+            lines.append(f"{a.symbol}: {a.final_score:.1f} ({diff:+.1f}) | {a.recommendation_label}")
+        return "\n".join(lines)
+
+    def _cmd_fund_backtest(self, symbol: str) -> str:
+        """بک‌تست استراتژی برای صندوق."""
+        ranked = self._get_ranked()
+        for a in ranked:
+            if a.symbol == symbol or symbol in a.symbol or symbol in (a.name or ""):
+                if a.advanced_metrics:
+                    bt = a.advanced_metrics.get("backtest", {})
+                    if bt:
+                        lines = [f"📈 بک‌تست استراتژی {symbol}"]
+                        for k, v in bt.items():
+                            lines.append(f"• {k}: {v}")
+                        return "\n".join(lines)
+                return f"بک‌تست برای {symbol} موجود نیست (حداقل ۳۰ روز داده لازم است)"
         return f"نماد {symbol} پیدا نشد"
 
     def _cmd_profile(self, chat_id: str, uid: str) -> None:
@@ -439,13 +543,6 @@ class SandoghchiBot:
             "تنظیم:\n/risk low|medium|high\n/capital 50000000"
         )
         self._reply(chat_id, text, reply_markup=main_menu_keyboard())
-
-    def _cmd_portfolio(self, chat_id: str, uid: str) -> None:
-        ranked = self._get_ranked()
-        prices = {a.symbol: float(a.last_price or a.close_price or 0) for a in ranked if a.last_price or a.close_price}
-        pf = self.portfolio.get_portfolio(uid)
-        text = humanized_portfolio_report(pf["items"], prices, pf["user"])
-        self._reply(chat_id, text, reply_markup=after_report_keyboard())
 
     def _cmd_pf_add(self, chat_id: str, uid: str, args: str) -> None:
         parts = args.split()
@@ -467,9 +564,9 @@ class SandoghchiBot:
         ranked = self._get_ranked()
         pf = self.portfolio.portfolio_summary_text(uid)
         ans = self.ai.answer(question, user=u, ranked=ranked, portfolio_text=pf)
+        text = format_ai_advice_brand(question, ans, u, pf)
         # store chat
         try:
-            from core.database.connection import get_database
             db = get_database()
             now = time.strftime("%Y-%m-%dT%H:%M:%S")
             with db.transaction() as conn:
@@ -483,7 +580,7 @@ class SandoghchiBot:
                 )
         except Exception:
             pass
-        self._reply(chat_id, ans, reply_markup=after_report_keyboard())
+        self._reply(chat_id, text, reply_markup=after_report_keyboard())
 
     def _reply(self, chat_id: str, text: str, *, reply_markup: Optional[dict[str, Any]] = None) -> None:
         self.telegram.send_message(text, chat_id=str(chat_id), reply_markup=reply_markup)
@@ -509,13 +606,13 @@ class SandoghchiBot:
         logger.info("ranked source=%s n=%s power=%s best=%s top=%.1f worst=%.1f", source, len(ranked), summary.market_power, summary.best_group, ranked[0].final_score if ranked else -1, ranked[-1].final_score if ranked else -1)
         return ranked
 
-
     # ---- onboarding helpers ----
     def _start_onboarding(self, chat_id: str, uid: str) -> None:
         self._onboarding_state[uid] = 0
         self._send_onboarding_step(chat_id, uid, 0)
 
     def _send_onboarding_step(self, chat_id: str, uid: str, step_index: int) -> None:
+        from services.telegram.beta_onboarding import ONBOARDING_STEPS, onboarding_complete_message, onboarding_keyboard, onboarding_question, parse_onboarding_response
         if step_index >= len(ONBOARDING_STEPS):
             if uid in self._onboarding_state:
                 del self._onboarding_state[uid]
@@ -531,6 +628,7 @@ class SandoghchiBot:
             self._reply(chat_id, text)
 
     def _handle_onboarding_callback(self, chat_id: str, data: str, uid: str, user: dict) -> None:
+        from services.telegram.beta_onboarding import parse_onboarding_response
         parsed = parse_onboarding_response(data)
         if not parsed:
             return

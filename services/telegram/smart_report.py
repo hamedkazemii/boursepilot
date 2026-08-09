@@ -67,7 +67,7 @@ def format_market_summary_telegram(
         lines.append(f"NAV موفق: {meta.get('nav_success', 0)}")
 
     lines.append("")
-    lines.append("در ادامه ۵ صندوق برتر و ۵ صندوق ضعیف‌تر ارسال می‌شود.")
+    lines.append("در ادامه ۵ صندوق برتر و ۵ صندوق با وضعیت نیازمند بررسی ارسال می‌شود.")
     return "\n".join(lines)
 
 
@@ -125,7 +125,7 @@ def format_fund_card(a: FundAssessment, *, kind: str) -> str:
         return "پرریسک"
 
     product = settings.PRODUCT_NAME
-    header = f"🏆 {product} | صندوق برتر #{a.rank or '-'}" if kind == "top" else f"⚠️ {product} | صندوق ضعیف #{a.rank or '-'}"
+    header = f"🏆 {product} | صندوق برتر #{a.rank or '-'}" if kind == "top" else f"⚠️ {product} | وضعیت نیازمند بررسی #{a.rank or '-'}"
     
     lines = [
         header,

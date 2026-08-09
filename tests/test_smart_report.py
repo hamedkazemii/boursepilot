@@ -92,7 +92,7 @@ class TestSmartReport(unittest.TestCase):
         self.assertIn("عیار", tops[0])
         self.assertIn("چرا این صندوق جذاب است؟", tops[0])
         self.assertIn("صندوق برتر", tops[0])
-        self.assertIn("صندوق ضعیف", worst[0])
+        self.assertIn("وضعیت نیازمند بررسی", worst[0])
         self.assertIn("چرا این صندوق قابل تامل است؟", worst[0])
         self.assertIn("نقطه ضعف", worst[0])
 

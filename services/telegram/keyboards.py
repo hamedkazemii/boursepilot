@@ -1,4 +1,4 @@
-"""کیبوردهای بتا — منوی تعاملی کامل + دکمه‌های اختصاصی."""
+"""کیبوردهای برند-سازگار صندوقچی — طراحی مبتنی بر سند هویت برند."""
 
 from __future__ import annotations
 
@@ -6,29 +6,99 @@ from typing import Any
 
 
 def main_menu_keyboard() -> dict[str, Any]:
+    """منوی اصلی ساده و کاربرپسند."""
     return {
         "inline_keyboard": [
             [
-                {"text": "📊 تحلیل امروز", "callback_data": "cmd:today"},
-                {"text": "🏆 برترین‌ها", "callback_data": "cmd:top"},
+                {"text": "🌅 گزارش صبحانه (۰۸:۵۰)", "callback_data": "cmd:morning_brief"},
+                {"text": "🏆 برترین‌های امروز", "callback_data": "cmd:today_top"},
             ],
             [
-                {"text": "⚠️ ضعیف‌ترین‌ها", "callback_data": "cmd:worst"},
-                {"text": "🌐 وضعیت بازار", "callback_data": "cmd:market"},
+                {"text": "⚠️ ضعیف‌ترین‌های امروز", "callback_data": "cmd:today_worst"},
+                {"text": "🔍 تحلیل تک صندوق", "callback_data": "cmd:fund_search"},
             ],
             [
-                {"text": "🔍 جستجوی صندوق", "callback_data": "cmd:search_prompt"},
-                {"text": "📁 سبد من", "callback_data": "cmd:portfolio"},
+                {"text": "🥇 بهترین هر دسته", "callback_data": "cmd:category_best"},
+                {"text": "📁 تحلیل سبد من", "callback_data": "cmd:my_portfolio"},
             ],
             [
-                {"text": "⭐ لیست پیگیری", "callback_data": "cmd:watch"},
-                {"text": "🤖 مشاور هوشمند", "callback_data": "cmd:ask"},
-            ],
-            [
-                {"text": "⚖️ مقایسه صندوق‌ها (به‌زودی)", "callback_data": "cmd:coming_soon"},
-            ],
-            [
+                {"text": "👤 پروفایل من", "callback_data": "cmd:my_profile"},
                 {"text": "ℹ️ راهنما", "callback_data": "cmd:help"},
+            ],
+        ]
+    }
+
+
+def after_report_keyboard() -> dict[str, Any]:
+    """کیبورد بعد از گزارش‌ها."""
+    return {
+        "inline_keyboard": [
+            [
+                {"text": "🏆 برترین‌ها", "callback_data": "cmd:today_top"},
+                {"text": "⚠️ ضعیف‌ترین‌ها", "callback_data": "cmd:today_worst"},
+            ],
+            [
+                {"text": "📁 سبد من", "callback_data": "cmd:my_portfolio"},
+                {"text": "🏠 منو اصلی", "callback_data": "cmd:menu"},
+            ],
+        ]
+    }
+
+
+def fund_actions_keyboard(symbol: str) -> dict[str, Any]:
+    """دکمه‌های اقدام برای تحلیل تک صندوق."""
+    return {
+        "inline_keyboard": [
+            [
+                {"text": "🔄 بروزرسانی تحلیل", "callback_data": f"fund:{symbol}"},
+                {"text": "📜 تاریخچه تحلیل", "callback_data": f"fund_history:{symbol}"},
+            ],
+            [
+                {"text": "⭐ اضافه به پیگیری", "callback_data": f"watch:{symbol}"},
+                {"text": "➕ اضافه به سبد", "callback_data": f"pfadd:{symbol}"},
+            ],
+            [
+                {"text": "📊 مقایسه با هم‌گروه", "callback_data": f"fund_compare:{symbol}"},
+                {"text": "📈 بک‌تست استراتژی", "callback_data": f"fund_backtest:{symbol}"},
+            ],
+            [
+                {"text": "🏠 منو اصلی", "callback_data": "cmd:menu"},
+            ],
+        ]
+    }
+
+
+def portfolio_actions_keyboard() -> dict[str, Any]:
+    """دکمه‌های مدیریت سبد."""
+    return {
+        "inline_keyboard": [
+            [
+                {"text": "➕ افزودن صندوق", "callback_data": "cmd:pf_add_prompt"},
+                {"text": "➖ حذف صندوق", "callback_data": "cmd:pf_del_prompt"},
+            ],
+            [
+                {"text": "🔄 بروزرسانی سبد", "callback_data": "cmd:my_portfolio"},
+                {"text": "📊 تحلیل ریسک سبد", "callback_data": "cmd:pf_risk"},
+            ],
+            [
+                {"text": "🏠 منو اصلی", "callback_data": "cmd:menu"},
+            ],
+        ]
+    }
+
+
+def category_detail_keyboard(category: str) -> dict[str, Any]:
+    """کیبورد جزئیات دسته‌بندی."""
+    safe_cat = category.replace(" ", "_")
+    return {
+        "inline_keyboard": [
+            [
+                {"text": f"🥇 بهترین {category}", "callback_data": f"cat_best:{safe_cat}"},
+                {"text": f"📊 همه {category}", "callback_data": f"cat_all:{safe_cat}"},
+            ],
+            [
+                {"text": f"📈 مقایسه درونی {category}", "callback_data": f"cat_compare:{safe_cat}"},
+                {"text": "🏠 منو اصلی", "callback_data": "cmd:menu"},
             ],
         ]
     }
@@ -73,76 +143,24 @@ def horizon_keyboard() -> dict[str, Any]:
     }
 
 
-def after_report_keyboard() -> dict[str, Any]:
-    return {
-        "inline_keyboard": [
-            [
-                {"text": "🏆 برتر", "callback_data": "cmd:top"},
-                {"text": "⚠️ ضعیف", "callback_data": "cmd:worst"},
-                {"text": "🌐 بازار", "callback_data": "cmd:market"},
-            ],
-            [
-                {"text": "📁 پرتفوی", "callback_data": "cmd:portfolio"},
-                {"text": "🏠 منو", "callback_data": "cmd:menu"},
-            ],
-        ]
-    }
-
-
-def fund_actions_keyboard(symbol: str) -> dict[str, Any]:
-    return {
-        "inline_keyboard": [
-            [
-                {"text": "🔄 بروزرسانی", "callback_data": f"fund:{symbol}"},
-                {"text": "⭐ واچ‌لیست", "callback_data": f"watch:{symbol}"},
-            ],
-            [
-                {"text": "➕ به سبد", "callback_data": f"pfadd:{symbol}"},
-                {"text": "⚖️ مقایسه", "callback_data": f"compare:{symbol}"},
-            ],
-            [
-                {"text": "🏠 منو", "callback_data": "cmd:menu"},
-            ],
-        ]
-    }
-
-
-def portfolio_actions_keyboard() -> dict[str, Any]:
-    return {
-        "inline_keyboard": [
-            [
-                {"text": "➕ افزودن صندوق", "callback_data": "cmd:pf_add_prompt"},
-                {"text": "➖ حذف صندوق", "callback_data": "cmd:pf_del_prompt"},
-            ],
-            [
-                {"text": "🔄 بروزرسانی سبد", "callback_data": "cmd:portfolio"},
-                {"text": "🏠 منو", "callback_data": "cmd:menu"},
-            ],
-        ]
-    }
-
-
 def help_text() -> str:
     return (
-        "📘 راهنمای صندوقچی (نسخه بتا)\n\n"
-        "📊 گزارش و رنکینگ:\n"
-        "• /today — تحلیل کامل امروز\n"
-        "• /top — ۵ صندوق برتر\n"
-        "• /worst — ۵ صندوق ضعیف\n"
-        "• /market — خلاصه وضعیت بازار\n"
-        "• /preopen — پیش‌گشایش\n"
-        "• /gold /fixed /stock — فیلتر گروه\n"
-        "• /fund <نماد> — تحلیل تک صندوق\n\n"
+        "📘 راهنمای صندوقچی\n\n"
+        "📊 گزارش‌ها و رنکینگ:\n"
+        "• /morning_brief — گزارش صبحانه بازار (۰۸:۵۰)\n"
+        "• /today_top — برترین‌های امروز\n"
+        "• /today_worst — ضعیف‌ترین‌های امروز\n"
+        "• /category_best — بهترین هر دسته‌بندی\n"
+        "• /fund <نماد> — تحلیل عمیق تک صندوق\n\n"
         "📁 پرتفوی و پیگیری:\n"
-        "• /portfolio — وضعیت سبد شما\n"
-        "• /pf_add <نماد> <تعداد> [قیمت]\n"
-        "• /pf_del <نماد>\n"
+        "• /portfolio — وضعیت و تحلیل سبد شما\n"
+        "• /pf_add <نماد> <تعداد> [قیمت] — افزودن به سبد\n"
+        "• /pf_del <نماد> — حذف از سبد\n"
         "• /watch <نماد> — اضافه به پیگیری\n"
         "• /watchlist — لیست پیگیری\n\n"
         "👤 پروفایل:\n"
         "• /profile — نمایش پروفایل\n"
-        "• /risk low|medium|high\n"
-        "• /capital <مبلغ> — سرمایه\n\n"
-        "🤖 مشاور:\n"
-        "• /ask یا چت آزاد — سوال بپرسید"
+        "• /risk low|medium|high — تنظیم ریسک\n"
+        "• /capital <مبلغ> — تنظیم سرمایه\n\n"
+        "💡 نکته: دکمه‌های منو همه دستورات را پوشش می‌دهند."
     )
