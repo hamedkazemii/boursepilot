@@ -256,9 +256,8 @@ async def receive_chunk(
         storage.save_batch(updated_batch)
 
         # Check if batch is now complete
-        # Validation is intentionally skipped here.
-        # Chunk ACK must remain fast.
-        if False and updated_batch.is_complete:
+        # Validation happens synchronously on completion
+        if updated_batch.is_complete:
             # Validate and reassemble
             validator = ChunkValidator(storage)
             manifest = _manifest_registry.get(batch_id)
@@ -290,6 +289,34 @@ async def receive_chunk(
                         "Batch %s complete and validated",
                         batch_id,
                     )
+                    
+                    # Auto-process the completed batch (background thread)
+                    try:
+                        from services.receiver.processor import ReceiverProcessor
+                        import threading
+                        processor = ReceiverProcessor(storage)
+                        # Run in background thread, don't block chunk ack
+                        def _run_process():
+                            try:
+                                result = processor.process_batch(batch_id)
+                                logger.info(
+                                    "Auto-processed batch %s: %s",
+                                    batch_id,
+                                    result.get("status"),
+                                )
+                            except Exception as exc:  # noqa: BLE001
+                                logger.error("Auto-process failed for batch %s: %s", batch_id, exc)
+                        threading.Thread(
+                            target=_run_process,
+                            daemon=True,
+                            name=f"batch-process-{batch_id[:8]}",
+                        ).start()
+                        logger.info(
+                            "Auto-process started for batch %s (background)",
+                            batch_id,
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        logger.error("Auto-process scheduling failed for batch %s: %s", batch_id, exc)
                 else:
                     updated_batch = ReceivedBatch(
                         batch_id=batch.batch_id,
