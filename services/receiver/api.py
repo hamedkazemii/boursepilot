@@ -280,9 +280,7 @@ async def receive_chunk(
             if manifest:
                 # Validate batch in background thread - don't block chunk ack
                 try:
-                    from services.receiver.validator import ReceiverValidator
                     import threading
-                    validator = ReceiverValidator(storage)
                     def _run_validation():
                         try:
                             validation = validator.validate_complete_batch(
