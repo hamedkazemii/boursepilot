@@ -30,11 +30,11 @@ class SyncExporter:
         FundSnapshots → JSON → gzip → checksum → chunks
     """
 
-    def __init__(self, default_chunk_size: int = 5120) -> None:
+    def __init__(self, default_chunk_size: int = 4800) -> None:
         """
         Args:
             default_chunk_size: Maximum chunk size in bytes.
-                Default 5120 = 5KB.
+                Default 4800 = 4.8KB (safe for MTU 1500).
         """
         self.default_chunk_size = default_chunk_size
 

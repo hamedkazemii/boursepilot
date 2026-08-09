@@ -29,11 +29,11 @@ class SyncChunker:
     the entire batch.
     """
 
-    def __init__(self, chunk_size: int = 5120) -> None:
+    def __init__(self, chunk_size: int = 4800) -> None:
         """
         Args:
             chunk_size: Maximum size of each chunk in bytes.
-                Default 5120 = 5KB.
+                Default 4800 = 4.8KB (safe for MTU 1500).
         """
         if chunk_size <= 0:
             raise ValueError("chunk_size must be positive")
