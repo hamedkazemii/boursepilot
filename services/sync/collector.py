@@ -93,16 +93,17 @@ class FundCollector:
         return snapshot
 
     def collect_all_funds(
-        self, limit: Optional[int] = None
+        self, limit: Optional[int] = None, include_nav: bool = False
     ) -> list[FundSnapshot]:
         """
         Collect snapshots for all fund-like symbols.
 
         Uses MarketSnapshotProvider.get_fund_symbols() to filter,
-then collects each fund individually.
+        then collects each fund individually.
 
         Args:
             limit: Maximum number of funds to collect. None = all.
+            include_nav: Whether to fetch NAV data (slow, quota-heavy). Default False for sync.
 
         Returns:
             List of FundSnapshot objects.
@@ -119,10 +120,11 @@ then collects each fund individually.
         snapshots: list[FundSnapshot] = []
         for quote in fund_quotes:
             nav = None
-            try:
-                nav = self.provider.get_nav(quote.symbol)
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("Failed to get NAV for %s: %s", quote.symbol, exc)
+            if include_nav:
+                try:
+                    nav = self.provider.get_nav(quote.symbol)
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("Failed to get NAV for %s: %s", quote.symbol, exc)
 
             snapshot = self._build_snapshot(quote, nav)
             self._store_snapshot(snapshot)

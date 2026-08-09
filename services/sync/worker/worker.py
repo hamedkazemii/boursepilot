@@ -58,7 +58,7 @@ class SyncWorker:
 
         # 1. Collect fresh fund data
         logger.info("Collecting fund snapshots...")
-        snapshots = self._collector.collect_all_funds(limit=None)
+        snapshots = self._collector.collect_all_funds(limit=None, include_nav=False)
         if not snapshots:
             logger.warning("No snapshots collected — skipping cycle")
             return {"sent": 0, "resumed": 0, "failed": 0, "skipped": 0}
