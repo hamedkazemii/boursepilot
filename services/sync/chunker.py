@@ -79,7 +79,7 @@ class SyncChunker:
                 chunk_index=i,
                 total_chunks=total_chunks,
                 data=chunk_data,
-                checksum=checksum,
+                # No checksum here - let SyncChunk.__post_init__ compute chunk-level SHA256
                 status="pending",
             )
             chunks.append(chunk)
