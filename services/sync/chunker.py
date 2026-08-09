@@ -4,7 +4,8 @@ Sync V1 — SyncChunker
 Splits compressed payloads into configurable chunks for
 resumable, retry-capable transfer.
 
-Default chunk size: 5KB (5120 bytes).
+Default chunk size: 4.8KB (4800 bytes) — safe for MTU 1500
+Prevents IP fragmentation on cross-server transfers.
 Supports retry/resume metadata for interrupted transfers.
 """
 

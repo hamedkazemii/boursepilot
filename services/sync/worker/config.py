@@ -36,7 +36,7 @@ class WorkerConfig:
     SYNC_API_KEY: str = _env("SYNC_API_KEY", "")
 
     # --- Chunking (reuse existing chunker defaults) ---
-    SYNC_CHUNK_SIZE: int = _env_int("SYNC_CHUNK_SIZE", 5120)
+    SYNC_CHUNK_SIZE: int = _env_int("SYNC_CHUNK_SIZE", 4800)
     SYNC_BATCH_SIZE: int = _env_int("SYNC_BATCH_SIZE", 100)
 
     # --- Retry ---
