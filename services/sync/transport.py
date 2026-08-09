@@ -28,6 +28,7 @@ class SyncTransport:
         return {
             "X-Sync-Key": self.api_key,
             "Content-Type": "application/json",
+            "Connection": "close",
         }
 
     def send_manifest(self, batch: SyncBatch):
