@@ -93,6 +93,7 @@ class SyncBatch:
     created_at: str = field(default_factory=_now_iso)
     checksum: str = ""
     compressed_size: int = 0
+    compressed: bytes = b""
     status: str = "pending"  # pending | sent | acked | failed
 
     def __post_init__(self) -> None:
@@ -122,6 +123,18 @@ class SyncBatch:
 
     def to_json(self) -> str:
         return json.dumps(self.to_dict(), ensure_ascii=False)
+
+    def _get_compressed_payload(self) -> bytes:
+        """Return the compressed payload for storage/transfer."""
+        if self.compressed:
+            return self.compressed
+        # Fallback: reconstruct from snapshots
+        import gzip
+        return gzip.compress(json.dumps(
+            [s.to_dict() for s in self.snapshots],
+            sort_keys=True,
+            ensure_ascii=False,
+        ).encode("utf-8"))
 
 
 @dataclass(frozen=True)

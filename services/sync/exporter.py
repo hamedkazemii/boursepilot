@@ -94,6 +94,7 @@ class SyncExporter:
             snapshots=tuple(snapshots),
             checksum=checksum,
             compressed_size=len(compressed),
+            compressed=compressed,
         )
 
         # Step 5: Chunk the compressed payload
