@@ -18,7 +18,7 @@ class SyncTransport:
         self,
         target_url: str,
         api_key: str,
-        timeout: int = 30,
+        timeout: int = 120,
     ):
         self.target_url = target_url.rstrip("/")
         self.api_key = api_key
