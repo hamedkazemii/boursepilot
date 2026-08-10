@@ -36,6 +36,7 @@ from services.telegram.brand_messaging import (
     format_home_brand,
     format_market_brief_brand,
     format_portfolio_brand,
+    format_today_analysis,
 )
 from services.telegram.keyboards import (
     after_report_keyboard,
@@ -424,9 +425,14 @@ class SandoghchiBot:
                 self._send_today_top(chat_id)
             elif cmd == "today_worst":
                 self._send_today_worst(chat_id)
+            elif cmd == "today_analysis":
+                self._send_today_analysis(chat_id)
             elif cmd == "market_now":
                 self._send_market_now(chat_id)
             elif cmd == "my_portfolio":
+                self._send_my_portfolio(chat_id, uid)
+            elif cmd == "pf_risk":
+                # تحلیل ریسک سبد = همان تحلیل سبد (شامل بخش ریسک)
                 self._send_my_portfolio(chat_id, uid)
             elif cmd == "fund_search":
                 self._reply(chat_id, "نام یا نماد صندوق را بفرستید (مثال: عیار یا ۱۲۳۴۵۶۷۸۹۰)", reply_markup=main_menu_keyboard())
@@ -560,6 +566,15 @@ class SandoghchiBot:
         meta = get_cached_payload()
         session = current_session()
         text = format_market_brief_brand(ranked, meta, session=session)
+        self._reply(chat_id, text, reply_markup=after_report_keyboard())
+
+    def _send_today_analysis(self, chat_id: str) -> None:
+        """تحلیل امروز: روند بازار + صندوق‌های پتانسیل بالا/ضعیف."""
+        ranked = self._get_ranked()
+        meta = get_cached_payload()
+        session = current_session()
+        # Today's analysis: combine current market snapshot + yesterday's comparison
+        text = format_today_analysis(ranked, meta, session=session)
         self._reply(chat_id, text, reply_markup=after_report_keyboard())
 
     def _send_my_portfolio(self, chat_id: str, uid: str) -> None:
