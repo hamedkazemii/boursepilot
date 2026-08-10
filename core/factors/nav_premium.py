@@ -26,7 +26,8 @@ def score_nav_premium(
     mild_prem = float(np_cfg.get("mild_premium", 0.5))
     high_prem = float(np_cfg.get("high_premium", 2.0))
 
-    price = quote.close_price if quote.close_price is not None else quote.last_price
+    # Use last_price (live) as primary, fallback to close_price
+    price = quote.last_price if quote.last_price is not None else quote.close_price
     redeem = nav.redeem_nav if nav else None
     issue = nav.issue_nav if nav else None
     premium = compute_premium_pct(price, redeem)

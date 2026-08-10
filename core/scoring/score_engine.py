@@ -61,7 +61,8 @@ class ScoreEngine:
         rec, rec_label = self._recommend(final)
         summary = self._summary_reasons(usable, final, rec_label)
 
-        price = quote.close_price if quote.close_price is not None else quote.last_price
+        # Use last_price (live) as primary, fallback to close_price
+        price = quote.last_price if quote.last_price is not None else quote.close_price
         premium = compute_premium_pct(price, nav.redeem_nav if nav else None)
 
         return FundAssessment(

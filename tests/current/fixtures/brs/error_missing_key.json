@@ -1,0 +1,6 @@
+{
+  "code_http": 400,
+  "successful": false,
+  "status": "missing_param",
+  "message_error": "Required parameter 'key' was not sent."
+}

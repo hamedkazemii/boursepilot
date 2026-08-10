@@ -28,6 +28,7 @@ def after_report_keyboard() -> dict:
         "inline_keyboard": [
             [{"text": "🔎 تحلیل یک صندوق", "callback_data": "cmd:fund_search"}],
             [{"text": "📁 سبد من", "callback_data": "cmd:my_portfolio"}],
+            [{"text": "🔙 بازگشت به منو اصلی", "callback_data": "cmd:menu"}],
         ]
     }
 
@@ -38,6 +39,7 @@ def fund_actions_keyboard(symbol: str) -> dict:
         "inline_keyboard": [
             [{"text": "🔎 تحلیل صندوق دیگر", "callback_data": "cmd:fund_search"}],
             [{"text": "📁 سبد من", "callback_data": "cmd:my_portfolio"}],
+            [{"text": "🔙 بازگشت به منو اصلی", "callback_data": "cmd:menu"}],
         ]
     }
 
@@ -52,6 +54,7 @@ def category_selector_keyboard() -> dict:
             [{"text": "⚖️ مختلط", "callback_data": "cat_best:مختلط"}],
             [{"text": "🚀 اهرمی", "callback_data": "cat_best:اهرم"}],
             [{"text": "📁 سبد من", "callback_data": "cmd:my_portfolio"}],
+            [{"text": "🔙 بازگشت به منو اصلی", "callback_data": "cmd:menu"}],
         ]
     }
 
@@ -64,6 +67,7 @@ def portfolio_actions_keyboard() -> dict:
             [{"text": "✏️ ویرایش سبد", "callback_data": "cmd:pf_edit_prompt"}],
             [{"text": "🗑 حذف صندوق", "callback_data": "cmd:pf_del_prompt"}],
             [{"text": "🔎 تحلیل سبد", "callback_data": "cmd:pf_risk"}],
+            [{"text": "🔙 بازگشت به منو اصلی", "callback_data": "cmd:menu"}],
         ]
     }
 
@@ -75,6 +79,7 @@ def pf_add_prompt_keyboard() -> dict:
         "inline_keyboard": [
             [{"text": "🔍 جستجوی دستی", "callback_data": "cmd:fund_search"}],
             [{"text": "📁 سبد من", "callback_data": "cmd:my_portfolio"}],
+            [{"text": "🔙 بازگشت به منو اصلی", "callback_data": "cmd:menu"}],
         ]
     }
 
@@ -86,6 +91,7 @@ def pf_add_select_keyboard(symbols: list[str]) -> dict:
         rows.append([{"text": f"➕ {sym}", "callback_data": f"pfadd:{sym}"}])
     rows.append([{"text": "🔍 جستجوی دستی", "callback_data": "cmd:fund_search"}])
     rows.append([{"text": "📁 سبد من", "callback_data": "cmd:my_portfolio"}])
+    rows.append([{"text": "🔙 بازگشت به منو اصلی", "callback_data": "cmd:menu"}])
     return {"inline_keyboard": rows}
 
 
@@ -95,6 +101,7 @@ def pf_del_prompt_keyboard(symbols: list[str]) -> dict:
     for sym in symbols:
         rows.append([{"text": f"🗑 {sym}", "callback_data": f"pfdel:{sym}"}])
     rows.append([{"text": "📁 سبد من", "callback_data": "cmd:my_portfolio"}])
+    rows.append([{"text": "🔙 بازگشت به منو اصلی", "callback_data": "cmd:menu"}])
     return {"inline_keyboard": rows}
 
 
@@ -104,6 +111,7 @@ def pf_edit_prompt_keyboard(symbols: list[str]) -> dict:
     for sym in symbols:
         rows.append([{"text": f"✏️ {sym}", "callback_data": f"pfedit:{sym}"}])
     rows.append([{"text": "📁 سبد من", "callback_data": "cmd:my_portfolio"}])
+    rows.append([{"text": "🔙 بازگشت به منو اصلی", "callback_data": "cmd:menu"}])
     return {"inline_keyboard": rows}
 
 
@@ -115,6 +123,7 @@ def pf_edit_action_keyboard(symbol: str) -> dict:
             [{"text": "➖ فروش بخشی", "callback_data": f"pfedit_sell:{symbol}"}],
             [{"text": "✏️ اصلاح اطلاعات", "callback_data": f"pfedit_fix:{symbol}"}],
             [{"text": "📁 سبد من", "callback_data": "cmd:my_portfolio"}],
+            [{"text": "🔙 بازگشت به منو اصلی", "callback_data": "cmd:menu"}],
         ]
     }
 
