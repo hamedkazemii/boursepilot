@@ -55,7 +55,7 @@ class Settings:
     # If set, all market data flows through this Gateway instead of BRS directly
     MARKET_GATEWAY_URL: str = _env("MARKET_GATEWAY_URL", "")
     MARKET_GATEWAY_TOKEN: str = _env("MARKET_GATEWAY_TOKEN", "")
-    GATEWAY_TIMEOUT_SECONDS: float = _env_float("GATEWAY_TIMEOUT_SECONDS", 30.0)
+    GATEWAY_TIMEOUT_SECONDS: float = _env_float("GATEWAY_TIMEOUT_SECONDS", 300.0)
 
     # --- BRS Market Data API (fallback / direct when no Gateway) ---
     # Base رسمی مستندات: https://Api.BrsApi.ir/Tsetmc
