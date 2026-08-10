@@ -167,27 +167,29 @@ class SandoghchiBot:
         if text.startswith("/"):
             self._handle_command(chat_id, text, user=user)
             return
-        # free text
+        # free text - state machine priority
         uid = str(user.get("id") or chat_id)
-        # portfolio wizard
+        # 1. Portfolio wizard (highest priority)
         if uid in self._pf_wizard:
             self._handle_pf_wizard(chat_id, text, uid, user)
             return
-        # onboarding capital input
+        # 2. Onboarding
         if uid in self._onboarding_state:
-            current_step = self._onboarding_state[uid]
             # onboarding steps don't have numeric input in current flow
             return
+        # 3. AI advisor awaiting question
         if uid in self._awaiting_ask:
             self._awaiting_ask.discard(uid)
             self._cmd_ask(chat_id, text, user=user)
             return
+        # 4. Fund analysis flow
         if uid in self._awaiting_fund_search:
             self._awaiting_fund_search.discard(uid)
             self._reply(chat_id, self._cmd_fund(text.split()[0]), reply_markup=fund_actions_keyboard(text.split()[0]))
             return
+        # 5. No active flow - ignore free text, show main menu
         if chat.get("type") == "private":
-            self._reply(chat_id, self._cmd_fund(text.split()[0]), reply_markup=fund_actions_keyboard(text.split()[0]))
+            self._reply(chat_id, "از منوی اصلی یکی رو انتخاب کن:", reply_markup=main_menu_keyboard())
             return
 
     def _handle_pf_wizard(self, chat_id: str, text: str, uid: str, user: Optional[dict] = None) -> None:
@@ -423,13 +425,15 @@ class SandoghchiBot:
         logger.info("cmd /%s chat=%s", cmd, chat_id)
         try:
             if cmd in {"start", "menu", "home"}:
+                # Reset all conversation state — /start همیشه حالت را پاک می‌کند
+                self._pf_wizard.pop(uid, None)
+                self._awaiting_fund_search.discard(uid)
+                self._awaiting_ask.discard(uid)
+                self._onboarding_state.pop(uid, None)
+                
                 self.portfolio.ensure_user(uid, username=user.get("username") or "", first_name=user.get("first_name") or "")
-                u = self.portfolio.ensure_user(uid)
-                if not u.get("risk_profile"):
-                    welcome = format_welcome_brand()
-                    self._reply(chat_id, welcome, reply_markup=main_menu_keyboard())
-                else:
-                    self._send_home(chat_id, uid)
+                welcome = format_welcome_brand()
+                self._reply(chat_id, welcome, reply_markup=main_menu_keyboard())
             elif cmd == "help":
                 self._reply(chat_id, help_text(), reply_markup=main_menu_keyboard())
             elif cmd == "morning_brief":
@@ -461,14 +465,21 @@ class SandoghchiBot:
                 text = "⭐ پیگیری‌های شما:\n" + ("\n".join(f"• {x}" for x in items) if items else "خالی")
                 self._reply(chat_id, text, reply_markup=after_report_keyboard())
             elif cmd == "pf_add_prompt":
-                self._reply(chat_id, "برای افزودن صندوق به سبد، نماد را انتخاب کنید یا بفرستید:", reply_markup=pf_add_prompt_keyboard())
+                self._reply(chat_id, "حتماً. اول اسم یا نماد صندوق رو بفرست.", reply_markup=pf_add_prompt_keyboard())
             elif cmd == "pf_del_prompt":
                 pf = self.portfolio.get_portfolio(uid)
                 symbols = [item["symbol"] for item in pf["items"]]
                 if not symbols:
-                    self._reply(chat_id, "سبد شما خالی است.", reply_markup=portfolio_actions_keyboard())
+                    self._reply(chat_id, "سبد تو خالیه.", reply_markup=portfolio_actions_keyboard())
                 else:
-                    self._reply(chat_id, "صندوقی که می‌خواهید حذف کنید را انتخاب کنید:", reply_markup=pf_del_prompt_keyboard(symbols))
+                    self._reply(chat_id, "باشه. کدوم صندوق رو می‌خوای از سبدت حذف کنیم؟", reply_markup=pf_del_prompt_keyboard(symbols))
+            elif cmd == "pf_edit_prompt":
+                pf = self.portfolio.get_portfolio(uid)
+                symbols = [item["symbol"] for item in pf["items"]]
+                if not symbols:
+                    self._reply(chat_id, "سبد تو خالیه.", reply_markup=portfolio_actions_keyboard())
+                else:
+                    self._reply(chat_id, "حتماً. اول بگو کدوم صندوق رو می‌خوای تغییر بدی.", reply_markup=pf_edit_prompt_keyboard(symbols))
             elif cmd == "ask":
                 if not args:
                     self._awaiting_ask.add(uid)
