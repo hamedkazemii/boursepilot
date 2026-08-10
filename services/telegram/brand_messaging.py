@@ -24,8 +24,8 @@ def _chg(a) -> float:
 
 
 def _nav(a) -> Optional[float]:
-    """برداشت NAV امن — اول NAV صدور/ابطال، سپس قیمت پایانی."""
-    for attr in ("nav_issue", "nav_redeem", "issue_nav", "redeem_nav", "close_price", "last_price"):
+    """برداشت NAV امن — اول NAV صدور/ابطال، سپس قیمت لحظه‌ای (last_price)، سپس پایانی (close_price)."""
+    for attr in ("nav_issue", "nav_redeem", "issue_nav", "redeem_nav", "last_price", "close_price"):
         v = getattr(a, attr, None)
         if v:
             return float(v)
