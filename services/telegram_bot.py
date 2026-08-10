@@ -62,6 +62,23 @@ from services.telegram.rank_loader import get_cached_payload, load_rankings
 logger = logging.getLogger(__name__)
 
 
+def _find_assessment(ranked, symbol):
+    """Exact symbol match first, then exact name, then unique partial."""
+    for a in ranked:
+        if a.symbol == symbol:
+            return a
+    for a in ranked:
+        if (a.name or "").strip() == symbol:
+            return a
+    partial = [a for a in ranked if symbol in a.symbol]
+    if len(partial) == 1:
+        return partial[0]
+    partial = [a for a in ranked if symbol in (a.name or "")]
+    if len(partial) == 1:
+        return partial[0]
+    return None
+
+
 class SandoghchiBot:
     def __init__(
         self,
@@ -890,26 +907,23 @@ class SandoghchiBot:
     def _cmd_fund_history(self, symbol: str) -> str:
         """تاریخچه تحلیلی صندوق."""
         ranked = self._get_ranked()
-        for a in ranked:
-            if a.symbol == symbol or symbol in a.symbol or symbol in (a.name or ""):
-                if a.advanced_metrics:
-                    history = a.advanced_metrics.get("history_summary", {})
-                    if history:
-                        lines = [f"📜 تاریخچه تحلیلی {symbol}"]
-                        for k, v in history.items():
-                            lines.append(f"• {k}: {v}")
-                        return "\n".join(lines)
+        target = _find_assessment(ranked, symbol)
+        if target:
+            symbol = target.symbol
+            if target.advanced_metrics:
+                history = target.advanced_metrics.get("history_summary", {})
+                if history:
+                    lines = [f"📜 تاریخچه تحلیلی {symbol}"]
+                    for k, v in history.items():
+                        lines.append(f"• {k}: {v}")
+                    return "\n".join(lines)
                 return f"تاریخچه تحلیلی برای {symbol} موجود نیست (حداقل ۳۰ روز داده لازم است)"
         return f"نماد {symbol} پیدا نشد"
 
     def _cmd_fund_compare(self, symbol: str) -> str:
         """مقایسه با هم‌گروه‌ها."""
         ranked = self._get_ranked()
-        target = None
-        for a in ranked:
-            if a.symbol == symbol or symbol in a.symbol or symbol in (a.name or ""):
-                target = a
-                break
+        target = _find_assessment(ranked, symbol)
         if not target:
             return f"نماد {symbol} پیدا نشد"
         cat_ranked = [a for a in ranked if target.fund_type and target.fund_type in (a.fund_type or "")]
@@ -924,17 +938,17 @@ class SandoghchiBot:
     def _cmd_fund_backtest(self, symbol: str) -> str:
         """بک‌تست استراتژی برای صندوق."""
         ranked = self._get_ranked()
-        for a in ranked:
-            if a.symbol == symbol or symbol in a.symbol or symbol in (a.name or ""):
-                if a.advanced_metrics:
-                    bt = a.advanced_metrics.get("backtest", {})
-                    if bt:
-                        lines = [f"📈 بک‌تست استراتژی {symbol}"]
-                        for k, v in bt.items():
-                            lines.append(f"• {k}: {v}")
-                        return "\n".join(lines)
-                return f"بک‌تست برای {symbol} موجود نیست (حداقل ۳۰ روز داده لازم است)"
-        return f"نماد {symbol} پیدا نشد"
+        target = _find_assessment(ranked, symbol)
+        if not target:
+            return f"نماد {symbol} پیدا نشد (حداقل ۳۰ روز داده لازم است)"
+        if target.advanced_metrics:
+            bt = target.advanced_metrics.get("backtest", {})
+            if bt:
+                lines = [f"📈 بک‌تست استراتژی {symbol}"]
+                for k, v in bt.items():
+                    lines.append(f"• {k}: {v}")
+                return "\n".join(lines)
+        return f"بک‌تست برای {symbol} موجود نیست (حداقل ۳۰ روز داده لازم است)"
 
     def _cmd_profile(self, chat_id: str, uid: str) -> None:
         u = self.portfolio.ensure_user(uid)
