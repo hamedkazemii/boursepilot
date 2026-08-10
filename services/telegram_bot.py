@@ -33,25 +33,30 @@ from services.telegram.brand_messaging import (
     format_category_report_brand,
     format_fund_card_brand,
     format_fund_deepdive_brand,
+    format_help_brand,
     format_home_brand,
-    format_market_brief_brand,
+    format_market_now_brand,
     format_portfolio_brand,
+    format_profile_brand,
     format_today_analysis,
+    format_welcome_brand,
 )
 from services.telegram.keyboards import (
     after_report_keyboard,
-    category_detail_keyboard,
+    cancel_only_keyboard,
+    category_selector_keyboard,
+    confirm_cancel_keyboard,
+    confirm_delete_keyboard,
     fund_actions_keyboard,
     help_text,
-    horizon_keyboard,
     main_menu_keyboard,
-    onboarding_start_keyboard,
-    portfolio_actions_keyboard,
     pf_add_prompt_keyboard,
+    pf_add_select_keyboard,
     pf_del_prompt_keyboard,
-    pf_edit_prompt_keyboard,
     pf_edit_action_keyboard,
-    risk_profile_keyboard,
+    pf_edit_prompt_keyboard,
+    portfolio_actions_keyboard,
+    profile_keyboard,
 )
 from services.telegram.rank_loader import get_cached_payload, load_rankings
 
@@ -374,13 +379,13 @@ class SandoghchiBot:
             elif data.startswith("cat_best:"):
                 cat = data.split(":", 1)[1].replace("_", " ")
                 meta = get_cached_payload()
-                self._reply(target, self._cmd_category_best(cat, meta), reply_markup=category_detail_keyboard(cat))
+                self._reply(target, self._cmd_category_best(cat, meta), reply_markup=category_selector_keyboard())
             elif data.startswith("cat_all:"):
                 cat = data.split(":", 1)[1].replace("_", " ")
-                self._reply(target, self._cmd_category_all(cat), reply_markup=category_detail_keyboard(cat))
+                self._reply(target, self._cmd_category_all(cat), reply_markup=category_selector_keyboard())
             elif data.startswith("cat_compare:"):
                 cat = data.split(":", 1)[1].replace("_", " ")
-                self._reply(target, self._cmd_category_compare(cat), reply_markup=category_detail_keyboard(cat))
+                self._reply(target, self._cmd_category_compare(cat), reply_markup=category_selector_keyboard())
             elif data.startswith("onboard:"):
                 self._handle_onboarding_callback(target, data, user_id or target, user)
             elif data == "cmd:onboarding_start":
@@ -410,11 +415,8 @@ class SandoghchiBot:
                 self.portfolio.ensure_user(uid, username=user.get("username") or "", first_name=user.get("first_name") or "")
                 u = self.portfolio.ensure_user(uid)
                 if not u.get("risk_profile"):
-                    welcome = (
-                        f"سلام! 👋 به {settings.PRODUCT_NAME} خوش آمدید.\n\n"
-                        "برای ارائه بهترین تحلیل‌ها، چند سؤال ساده ازتون می‌پرسم."
-                    )
-                    self._reply(chat_id, welcome, reply_markup=onboarding_start_keyboard())
+                    welcome = format_welcome_brand()
+                    self._reply(chat_id, welcome, reply_markup=main_menu_keyboard())
                 else:
                     self._send_home(chat_id, uid)
             elif cmd == "help":
@@ -432,7 +434,6 @@ class SandoghchiBot:
             elif cmd == "my_portfolio":
                 self._send_my_portfolio(chat_id, uid)
             elif cmd == "pf_risk":
-                # تحلیل ریسک سبد = همان تحلیل سبد (شامل بخش ریسک)
                 self._send_my_portfolio(chat_id, uid)
             elif cmd == "fund_search":
                 self._reply(chat_id, "نام یا نماد صندوق را بفرستید (مثال: عیار یا ۱۲۳۴۵۶۷۸۹۰)", reply_markup=main_menu_keyboard())
@@ -532,9 +533,8 @@ class SandoghchiBot:
         self._reply(chat_id, "⏳ گزارش صبحانه بازار در حال تهیه…")
         ranked = self._get_ranked()
         meta = get_cached_payload()
-        text = format_market_brief_brand(ranked, meta)
-        keyboard = after_report_keyboard()
-        self._reply(chat_id, text, reply_markup=keyboard)
+        text = format_market_now_brand(ranked, meta)
+        self._reply(chat_id, text, reply_markup=after_report_keyboard())
 
     def _send_today_top(self, chat_id: str) -> None:
         """برترین‌های امروز با پیام‌سازی برند."""
@@ -565,7 +565,7 @@ class SandoghchiBot:
         ranked = self._get_ranked()
         meta = get_cached_payload()
         session = current_session()
-        text = format_market_brief_brand(ranked, meta, session=session)
+        text = format_market_now_brand(ranked, meta)
         self._reply(chat_id, text, reply_markup=after_report_keyboard())
 
     def _send_today_analysis(self, chat_id: str) -> None:
@@ -611,7 +611,7 @@ class SandoghchiBot:
             self._reply(chat_id, f"گروه {fund_type} یافت نشد", reply_markup=main_menu_keyboard())
             return
         text = format_category_report_brand(fund_type, ranked, meta)
-        keyboard = category_detail_keyboard(fund_type)
+        keyboard = category_selector_keyboard()
         self._reply(chat_id, text, reply_markup=keyboard)
 
     def _cmd_category_best(self, category: str, meta: dict) -> str:
@@ -715,16 +715,12 @@ class SandoghchiBot:
 
     def _cmd_profile(self, chat_id: str, uid: str) -> None:
         u = self.portfolio.ensure_user(uid)
-        text = (
-            "👤 پروفایل شما\n"
-            f"شناسه: {u.get('telegram_id')}\n"
-            f"نام: {u.get('first_name') or ''} {u.get('last_name') or ''}\n"
-            f"ریسک: {u.get('risk_profile')}\n"
-            f"افق: {u.get('horizon_months')} ماه\n"
-            f"سرمایه: {float(u.get('capital') or 0):,.0f}\n\n"
-            "تنظیم:\n/risk low|medium|high\n/capital 50000000"
-        )
-        self._reply(chat_id, text, reply_markup=main_menu_keyboard())
+        pf = self.portfolio.get_portfolio(uid)
+        ranked = self._get_ranked()
+        prices = {a.symbol: float(a.last_price or a.close_price or 0) for a in ranked if a.last_price or a.close_price}
+        join_days = 1  # placeholder
+        text = format_profile_brand(u, pf["items"], prices, join_days)
+        self._reply(chat_id, text, reply_markup=profile_keyboard())
 
     def _cmd_pf_add(self, chat_id: str, uid: str, args: str) -> None:
         parts = args.split()
