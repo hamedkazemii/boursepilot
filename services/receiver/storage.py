@@ -8,6 +8,7 @@ Storage layout:
     data/receiver/
     ├── batches/           # Batch metadata JSON files
     │   └── {batch_id}.json
+    │   └── {batch_id}.manifest.json
     └── chunks/            # Individual chunk files
         └── {batch_id}/{chunk_number}.bin
 """
@@ -18,6 +19,9 @@ import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any, Optional
+
+from services.sync.models import SyncManifest
 from typing import Any, Optional
 
 from services.receiver.models import ReceivedChunk, ReceivedBatch
@@ -52,6 +56,28 @@ class ReceiverStorage:
             json.dump(batch.to_dict(), f, ensure_ascii=False, indent=2)
         logger.debug("Saved batch metadata: %s", filepath)
         return filepath
+
+    def save_manifest(self, batch_id: str, manifest: "SyncManifest") -> Path:
+        """Save manifest as a JSON file."""
+        filepath = self.batches_dir / f"{batch_id}.manifest.json"
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(manifest.to_dict(), f, ensure_ascii=False, indent=2)
+        logger.debug("Saved manifest: %s", filepath)
+        return filepath
+
+    def load_manifest(self, batch_id: str) -> Optional["SyncManifest"]:
+        """Load manifest from a JSON file."""
+        from services.sync.models import SyncManifest
+        filepath = self.batches_dir / f"{batch_id}.manifest.json"
+        if not filepath.exists():
+            return None
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return SyncManifest(**data)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Failed to load manifest %s: %s", batch_id, exc)
+            return None
 
     def load_batch(self, batch_id: str) -> Optional[ReceivedBatch]:
         """Load batch metadata from a JSON file."""
@@ -104,6 +130,11 @@ class ReceiverStorage:
         filepath = self.chunks_dir / batch_id / f"{chunk_number}.bin"
         if not filepath.exists():
             return None
+        # Load checksum from batch metadata
+        batch = self.load_batch(batch_id)
+        chunk_checksum = ""
+        if batch and chunk_number in batch.chunks:
+            chunk_checksum = batch.chunks[chunk_number].checksum
         try:
             with open(filepath, "rb") as f:
                 payload = f.read()
@@ -111,7 +142,7 @@ class ReceiverStorage:
                 batch_id=batch_id,
                 chunk_number=chunk_number,
                 payload=payload,
-                checksum="",  # Checksum stored in metadata, not file
+                checksum=chunk_checksum,
             )
         except Exception as exc:  # noqa: BLE001
             logger.warning("Failed to load chunk %d for batch %s: %s", chunk_number, batch_id, exc)
@@ -130,6 +161,15 @@ class ReceiverStorage:
         return sorted(
             int(f.stem) for f in chunk_dir.glob("*.bin") if f.stem.isdigit()
         )
+
+    def load_all_chunks(self, batch_id: str) -> list[ReceivedChunk]:
+        """Load all chunks for a batch in order."""
+        chunks = []
+        for chunk_num in self.list_chunks(batch_id):
+            chunk = self.load_chunk(batch_id, chunk_num)
+            if chunk is not None:
+                chunks.append(chunk)
+        return chunks
 
     # ------------------------------------------------------------------
     # Cleanup

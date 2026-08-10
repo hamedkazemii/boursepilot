@@ -197,6 +197,72 @@ async def receive_chunk(
     # Check for duplicate
     storage = ReceiverStorage()
     if storage.chunk_exists(batch_id, chunk_number):
+        # Even if duplicate, check if batch is now complete and needs validation
+        if batch_id not in _batch_registry:
+            batch = storage.load_batch(batch_id)
+            if batch is not None:
+                _batch_registry[batch_id] = batch
+        if batch_id in _batch_registry:
+            batch = _batch_registry[batch_id]
+            if batch.is_complete and batch.status != "complete":
+                # Trigger validation for already-complete batch
+                logger.info("Batch %s already complete, triggering validation", batch_id)
+                manifest = _manifest_registry.get(batch_id)
+                if manifest is None:
+                    manifest = storage.load_manifest(batch_id)
+                    if manifest is not None:
+                        _manifest_registry[batch_id] = manifest
+                if manifest:
+                    try:
+                        import threading
+                        def _run_validation():
+                            try:
+                                validator = ChunkValidator(storage)
+                                validation = validator.validate_complete_batch(batch, manifest)
+                                if validation.get("final_checksum_valid") is True:
+                                    completed_batch = ReceivedBatch(
+                                        batch_id=batch.batch_id,
+                                        total_chunks=batch.total_chunks,
+                                        chunk_size=batch.chunk_size,
+                                        expected_checksum=batch.expected_checksum,
+                                        snapshot_count=batch.snapshot_count,
+                                        source=batch.source,
+                                        target=batch.target,
+                                        created_at=batch.created_at,
+                                        chunks=batch.chunks,
+                                        status="complete",
+                                        completed_at=__import__("datetime").datetime.now(
+                                            tz=__import__("datetime").timezone.utc
+                                        ).isoformat(),
+                                    )
+                                    _batch_registry[batch_id] = completed_batch
+                                    storage.save_batch(completed_batch)
+                                    logger.info("Batch %s complete and validated", batch_id)
+                                    
+                                    # Auto-process the completed batch (background thread)
+                                    try:
+                                        from services.receiver.processor import ReceiverProcessor
+                                        processor = ReceiverProcessor(storage)
+                                        result = processor.process_batch(batch_id)
+                                        logger.info(
+                                            "Auto-processed batch %s: %s",
+                                            batch_id,
+                                            result.get("status"),
+                                        )
+                                    except Exception as exc:  # noqa: BLE001
+                                        logger.error("Auto-process failed for batch %s: %s", batch_id, exc)
+                                else:
+                                    logger.warning("Batch %s validation failed: %s", batch_id, validation)
+                            except Exception as exc:  # noqa: BLE001
+                                logger.error("Batch validation failed for %s: %s", batch_id, exc)
+                        threading.Thread(
+                            target=_run_validation,
+                            daemon=True,
+                            name=f"batch-validate-{batch_id[:8]}",
+                        ).start()
+                    except Exception as exc:  # noqa: BLE001
+                        logger.error("Failed to start background validation for batch %s: %s", batch_id, exc)
+        
         ack = SyncAck(
             batch_id=batch_id,
             chunk_number=chunk_number,

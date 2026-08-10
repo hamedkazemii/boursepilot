@@ -46,6 +46,8 @@ from services.telegram.keyboards import (
     main_menu_keyboard,
     onboarding_start_keyboard,
     portfolio_actions_keyboard,
+    pf_add_prompt_keyboard,
+    pf_del_prompt_keyboard,
     risk_profile_keyboard,
 )
 from services.telegram.rank_loader import get_cached_payload, load_rankings
@@ -209,9 +211,22 @@ class SandoghchiBot:
                 sym = data.split(":", 1)[1]
                 self._reply(
                     target,
-                    f"برای افزودن {sym} بفرستید:\\n/pf_add {sym} <تعداد> [قیمت‌خرید]",
+                    f"برای افزودن {sym} بفرستید:\n/pf_add {sym} <تعداد> [قیمت‌خرید]",
                     reply_markup=main_menu_keyboard(),
                 )
+            elif data.startswith("pfdel:"):
+                sym = data.split(":", 1)[1]
+                self.portfolio.remove_holding(user_id or target, sym)
+                self._reply(target, f"✅ {sym} از سبد حذف شد.", reply_markup=portfolio_actions_keyboard())
+            elif data == "cmd:pf_add_prompt":
+                self._reply(target, "برای افزودن صندوق به سبد، نماد را انتخاب کنید یا بفرستید:", reply_markup=pf_add_prompt_keyboard())
+            elif data == "cmd:pf_del_prompt":
+                pf = self.portfolio.get_portfolio(user_id or target)
+                symbols = [item["symbol"] for item in pf["items"]]
+                if not symbols:
+                    self._reply(target, "سبد شما خالی است.", reply_markup=portfolio_actions_keyboard())
+                else:
+                    self._reply(target, "صندوقی که می‌خواهید حذف کنید را انتخاب کنید:", reply_markup=pf_del_prompt_keyboard(symbols))
             elif data.startswith("cat_best:"):
                 cat = data.split(":", 1)[1].replace("_", " ")
                 meta = get_cached_payload()
@@ -284,6 +299,15 @@ class SandoghchiBot:
                 items = self.portfolio.list_watch(uid)
                 text = "⭐ پیگیری‌های شما:\n" + ("\n".join(f"• {x}" for x in items) if items else "خالی")
                 self._reply(chat_id, text, reply_markup=after_report_keyboard())
+            elif cmd == "pf_add_prompt":
+                self._reply(chat_id, "برای افزودن صندوق به سبد، نماد را انتخاب کنید یا بفرستید:", reply_markup=pf_add_prompt_keyboard())
+            elif cmd == "pf_del_prompt":
+                pf = self.portfolio.get_portfolio(uid)
+                symbols = [item["symbol"] for item in pf["items"]]
+                if not symbols:
+                    self._reply(chat_id, "سبد شما خالی است.", reply_markup=portfolio_actions_keyboard())
+                else:
+                    self._reply(chat_id, "صندوقی که می‌خواهید حذف کنید را انتخاب کنید:", reply_markup=pf_del_prompt_keyboard(symbols))
             elif cmd == "ask":
                 if not args:
                     self._awaiting_ask.add(uid)

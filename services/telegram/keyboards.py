@@ -22,6 +22,10 @@ def main_menu_keyboard() -> dict[str, Any]:
                 {"text": "📁 تحلیل سبد من", "callback_data": "cmd:my_portfolio"},
             ],
             [
+                {"text": "📊 تحلیل لحظه‌ای بازار", "callback_data": "cmd:market_now"},
+                {"text": "🤖 مشاوره هوشمند", "callback_data": "cmd:ask"},
+            ],
+            [
                 {"text": "👤 پروفایل من", "callback_data": "cmd:my_profile"},
                 {"text": "ℹ️ راهنما", "callback_data": "cmd:help"},
             ],
@@ -85,6 +89,34 @@ def portfolio_actions_keyboard() -> dict[str, Any]:
             ],
         ]
     }
+
+
+def pf_add_prompt_keyboard() -> dict[str, Any]:
+    """دکمه‌های راهنمای افزودن صندوق."""
+    return {
+        "inline_keyboard": [
+            [
+                {"text": "🔍 جستجوی صندوق", "callback_data": "cmd:fund_search"},
+                {"text": "🏆 برترین‌ها", "callback_data": "cmd:today_top"},
+            ],
+            [
+                {"text": "🥇 بهترین هر دسته", "callback_data": "cmd:category_best"},
+                {"text": "🏠 منو اصلی", "callback_data": "cmd:menu"},
+            ],
+        ]
+    }
+
+
+def pf_del_prompt_keyboard(symbols: list[str]) -> dict[str, Any]:
+    """دکمه‌های انتخاب صندوق برای حذف."""
+    keyboard = []
+    for i in range(0, len(symbols), 2):
+        row = []
+        for sym in symbols[i:i+2]:
+            row.append({"text": f"➖ {sym}", "callback_data": f"pfdel:{sym}"})
+        keyboard.append(row)
+    keyboard.append([{"text": "🏠 منو اصلی", "callback_data": "cmd:menu"}])
+    return {"inline_keyboard": keyboard}
 
 
 def category_detail_keyboard(category: str) -> dict[str, Any]:
