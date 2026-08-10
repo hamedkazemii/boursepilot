@@ -8,35 +8,43 @@ from __future__ import annotations
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.gzip import GZipMiddleware
+import time
 
-from services.providers.factory import get_market_data_provider
+# Gateway should use BRS provider directly, not GatewayProvider (which points to self)
+from services.providers.brs_provider import BrsProvider
 
 app = FastAPI(title="BoursePilot Market Gateway")
 
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
-provider = get_market_data_provider()
+provider = BrsProvider()
 
 _SYMBOL_CACHE: list | None = None
+_SYMBOL_CACHE_TIME: float = 0
 _FUND_CACHE: list | None = None
-
+_FUND_CACHE_TIME: float = 0
+CACHE_TTL = 30  # 30 seconds for bulk endpoints
 
 def get_symbols_cached():
-    """Return all symbols, cached after first load."""
-    global _SYMBOL_CACHE
-    if _SYMBOL_CACHE is None:
+    """Return all symbols, cached with short TTL."""
+    global _SYMBOL_CACHE, _SYMBOL_CACHE_TIME
+    now = time.time()
+    if _SYMBOL_CACHE is None or (now - _SYMBOL_CACHE_TIME) > CACHE_TTL:
         print("LOADING SYMBOL CACHE...")
         _SYMBOL_CACHE = provider.get_all_symbols()
+        _SYMBOL_CACHE_TIME = now
         print("CACHE SIZE:", len(_SYMBOL_CACHE))
     return _SYMBOL_CACHE
 
 
 def get_funds_cached():
-    """Return fund-like symbols, cached after first load."""
-    global _FUND_CACHE
-    if _FUND_CACHE is None:
+    """Return fund-like symbols, cached with short TTL."""
+    global _FUND_CACHE, _FUND_CACHE_TIME
+    now = time.time()
+    if _FUND_CACHE is None or (now - _FUND_CACHE_TIME) > CACHE_TTL:
         print("LOADING FUND CACHE...")
         _FUND_CACHE = provider.get_fund_symbols()
+        _FUND_CACHE_TIME = now
         print("FUND CACHE SIZE:", len(_FUND_CACHE))
     return _FUND_CACHE
 
