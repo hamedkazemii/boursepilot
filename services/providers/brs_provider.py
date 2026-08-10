@@ -32,6 +32,10 @@ class BrsProvider:
 
     name = "brs"
 
+    @property
+    def is_available(self) -> bool:
+        return True
+
     def __init__(self, client: Optional[BrsClient] = None) -> None:
         self.client = client or BrsClient()
 
