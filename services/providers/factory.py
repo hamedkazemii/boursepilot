@@ -1,12 +1,13 @@
 
 from __future__ import annotations
 import os
-"""ساخت provider فعال از روی تنظیمات — با پشتیبانی Gateway و Demo Mode.
+"""ساخت provider فعال از روی تنظیمات — با پشتیبانی Gateway، LocalDB و Demo Mode.
 
 اولویت:
 1. gateway — اگر MARKET_GATEWAY_URL تنظیم شده باشد
-2. brs — اگر BRS_API_KEY معتبر باشد  
-3. demo — اگر هیچ‌کدام در دسترس نباشد (بدون کرش)
+2. localdb — اگر MARKET_DATA_PROVIDER=localdb باشد
+3. brs — اگر BRS_API_KEY معتبر باشد 
+4. demo — اگر هیچ‌کدام در دسترس نباشد (بدون کرش)
 """
 
 
@@ -19,6 +20,7 @@ from services.providers.brs_provider import BrsProvider
 from services.providers.exceptions import ProviderConfigError
 from services.providers.gateway_provider import MarketGatewayProvider
 from services.providers.gateway_client import MarketGatewayClient
+from services.providers.localdb_provider import LocalDBProvider
 
 logger = logging.getLogger(__name__)
 
@@ -47,12 +49,13 @@ class DemoProvider:
 
 def get_market_data_provider(name: Optional[str] = None) -> MarketDataProvider:
     """
-    Factory برای MarketDataProvider با-firstلback هوشمند.
+    Factory برای MarketDataProvider با fallback هوشمند.
 
     اولویت:
     1. gateway — اگر MARKET_GATEWAY_URL تنظیم شده
-    2. brs — اگر BRS_API_KEY معتبر باشد
-    3. demo — در غیر این صورت (بدون کرش)
+    2. localdb — اگر MARKET_DATA_PROVIDER=localdb باشد
+    3. brs — اگر BRS_API_KEY معتبر باشد
+    4. demo — در غیر این صورت (بدون کرش)
     """
     requested = (name or os.getenv("MARKET_DATA_PROVIDER") or settings.MARKET_DATA_PROVIDER or "auto").strip().lower()
     logger.info("creating market data provider (requested=%s)", requested)
@@ -71,6 +74,17 @@ def get_market_data_provider(name: Optional[str] = None) -> MarketDataProvider:
                 logger.warning("gateway init failed: %s", exc)
         if requested == "gateway":
             logger.warning("gateway requested but MARKET_GATEWAY_URL not set — falling back")
+
+    # LocalDB provider — برای سرور External
+    if requested in {"localdb", "auto"}:
+        try:
+            provider = LocalDBProvider()
+            logger.info("provider selected: localdb")
+            return provider
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("localdb init failed: %s", exc)
+        if requested == "localdb":
+            logger.warning("localdb requested but init failed — falling back")
 
     # BRS fallback
     if requested in {"brs", "brsapi", "brs_api", "auto"}:
@@ -95,6 +109,9 @@ def get_provider_status() -> dict:
         "gateway": {
             "configured": bool(settings.MARKET_GATEWAY_URL),
             "url": settings.MARKET_GATEWAY_URL or None,
+        },
+        "localdb": {
+            "configured": True,  # LocalDB همیشه در دسترس است (دیتابیس SQLite)
         },
         "brs": {
             "configured": bool(settings.BRS_API_KEY and settings.BRS_API_KEY != "***"),

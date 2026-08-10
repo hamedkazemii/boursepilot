@@ -82,6 +82,7 @@ class SandoghchiBot:
         self._ranked_at = 0.0
         self._ranked_source = ""
         self._awaiting_ask: set[str] = set()
+        self._awaiting_fund_search: set[str] = set()
         self._onboarding_state: dict[str, int] = {}  # user_id -> step_index
         self.warm_cache = warm_cache
 
@@ -164,11 +165,17 @@ class SandoghchiBot:
             current_step = self._onboarding_state[uid]
             # onboarding steps don't have numeric input in current flow
             return
-        if uid in self._awaiting_ask or chat.get("type") == "private":
+        if uid in self._awaiting_ask:
             self._awaiting_ask.discard(uid)
             self._cmd_ask(chat_id, text, user=user)
-        else:
+            return
+        if uid in self._awaiting_fund_search:
+            self._awaiting_fund_search.discard(uid)
             self._reply(chat_id, self._cmd_fund(text.split()[0]), reply_markup=fund_actions_keyboard(text.split()[0]))
+            return
+        if chat.get("type") == "private":
+            self._reply(chat_id, self._cmd_fund(text.split()[0]), reply_markup=fund_actions_keyboard(text.split()[0]))
+            return
 
     def _handle_callback(self, cq: dict[str, Any]) -> None:
         cq_id = str(cq.get("id") or "")
@@ -287,7 +294,7 @@ class SandoghchiBot:
                 self._send_my_portfolio(chat_id, uid)
             elif cmd == "fund_search":
                 self._reply(chat_id, "نام یا نماد صندوق را بفرستید (مثال: عیار یا ۱۲۳۴۵۶۷۸۹۰)", reply_markup=main_menu_keyboard())
-                self._awaiting_ask.add(uid)  # reuse for fund search
+                self._awaiting_fund_search.add(uid)
             elif cmd == "category_best":
                 self._send_category_best(chat_id)
             elif cmd == "group":
