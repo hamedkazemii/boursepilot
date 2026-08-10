@@ -85,6 +85,7 @@ class SandoghchiBot:
         self._ranked_source = ""
         self._awaiting_ask: set[str] = set()
         self._awaiting_fund_search: set[str] = set()
+        self._pf_wizard: dict[str, dict[str, Any]] = {}  # uid -> {step, symbol, qty, price, date}
         self._onboarding_state: dict[str, int] = {}  # user_id -> step_index
         self.warm_cache = warm_cache
 
@@ -162,6 +163,10 @@ class SandoghchiBot:
             return
         # free text
         uid = str(user.get("id") or chat_id)
+        # portfolio wizard
+        if uid in self._pf_wizard:
+            self._handle_pf_wizard(chat_id, text, uid, user)
+            return
         # onboarding capital input
         if uid in self._onboarding_state:
             current_step = self._onboarding_state[uid]
@@ -178,6 +183,107 @@ class SandoghchiBot:
         if chat.get("type") == "private":
             self._reply(chat_id, self._cmd_fund(text.split()[0]), reply_markup=fund_actions_keyboard(text.split()[0]))
             return
+
+    def _handle_pf_wizard(self, chat_id: str, text: str, uid: str, user: Optional[dict] = None) -> None:
+        """راهنمای گام‌به‌گام افزودن/ویرایش صندوق در سبد."""
+        w = self._pf_wizard.get(uid)
+        if not w:
+            return
+        step = w.get("step")
+        if step == "qty":
+            qty = _parse_number(text)
+            if qty is None or qty <= 0:
+                self._reply(chat_id, "🔢 تعداد نامعتبر است. یک عدد مثبت بفرستید (مثال: 100):")
+                return
+            w["qty"] = qty
+            w["step"] = "price"
+            self._reply(
+                chat_id,
+                f"🔢 تعداد ثبت شد: {qty:g}\n\n"
+                f"💵 قیمت خرید هر واحد (به ریال) را وارد کنید:\n"
+                f"(مثال: 25000)",
+                reply_markup=None,
+            )
+        elif step == "price":
+            price = _parse_number(text)
+            if price is None or price <= 0:
+                self._reply(chat_id, "💵 قیمت نامعتبر است. عدد مثبت بفرستید (مثال: 25000):")
+                return
+            w["price"] = price
+            w["step"] = "date"
+            self._reply(
+                chat_id,
+                f"💵 قیمت ثبت شد: {price:,.0f} ریال\n\n"
+                f"📅 تاریخ دقیق خرید را بفرستید (مثال: 1404/05/20):",
+                reply_markup=None,
+            )
+        elif step == "date":
+            w["date"] = text.strip()
+            w["step"] = "confirm"
+            mode = w.get("mode", "add")
+            sym = w.get("symbol", "")
+            qty = w.get("qty", 0)
+            price = w.get("price", 0)
+            if mode == "sell":
+                lines = [
+                    f"📉 فروش {sym}\n",
+                    f"🔢 تعداد: {qty:g}\n",
+                    f"💵 قیمت فروش: {price:,.0f} ریال\n",
+                    f"📅 تاریخ: {w['date']}\n",
+                    f"💰 ارزش فروش: {qty * price:,.0f} ریال\n",
+                    "\nآیا تأیید می‌کنید؟",
+                ]
+            else:
+                lines = [
+                    f"➕ افزودن {sym} به سبد\n",
+                    f"🔢 تعداد: {qty:g}\n",
+                    f"💵 قیمت خرید: {price:,.0f} ریال\n",
+                    f"📅 تاریخ: {w['date']}\n",
+                    f"💰 ارزش خرید: {qty * price:,.0f} ریال\n",
+                    "\nآیا تأیید می‌کنید؟",
+                ]
+            kb = {
+                "inline_keyboard": [
+                    [
+                        {"text": "✅ تأیید", "callback_data": f"pfwiz_confirm:{uid}"},
+                        {"text": "❌ انصراف", "callback_data": "cmd:menu"},
+                    ]
+                ]
+            }
+            self._reply(chat_id, "\n".join(lines), reply_markup=kb)
+        else:
+            self._pf_wizard.pop(uid, None)
+
+    def _handle_pf_wizard_confirm(self, target: str, uid: str) -> None:
+        """تأیید نهایی wizard و ثبت در سبد."""
+        w = self._pf_wizard.pop(uid, None)
+        if not w:
+            self._reply(target, "داده‌ای برای تأیید نیست.", reply_markup=main_menu_keyboard())
+            return
+        sym = w.get("symbol", "")
+        qty = w.get("qty", 0)
+        price = w.get("price", 0)
+        mode = w.get("mode", "add")
+        if mode == "sell":
+            # فروش: کاهش تعداد از سبد (حداقل به صفر نرسد)
+            self.portfolio.remove_holding(uid, sym)
+            self._reply(
+                target,
+                f"✅ {sym} فروخته شد ({qty:g} واحد @ {price:,.0f} ریال)\n"
+                f"💰 ارزش فروش: {qty * price:,.0f} ریال\n"
+                f"📅 {w.get('date', '')}",
+                reply_markup=portfolio_actions_keyboard(),
+            )
+        else:
+            self.portfolio.upsert_holding(uid, sym, quantity=qty, avg_cost=price)
+            self._reply(
+                target,
+                f"✅ {sym} به سبد اضافه شد.\n"
+                f"🔢 {qty:g} واحد @ {price:,.0f} ریال\n"
+                f"📅 {w.get('date', '')}\n"
+                f"💰 ارزش: {qty * price:,.0f} ریال",
+                reply_markup=portfolio_actions_keyboard(),
+            )
 
     def _handle_callback(self, cq: dict[str, Any]) -> None:
         cq_id = str(cq.get("id") or "")
@@ -218,10 +324,15 @@ class SandoghchiBot:
                 self._reply(target, f"⭐ {sym} به واچ‌لیست اضافه شد.", reply_markup=after_report_keyboard())
             elif data.startswith("pfadd:"):
                 sym = data.split(":", 1)[1]
+                uid_w = user_id or target
+                self._pf_wizard[uid_w] = {"step": "qty", "symbol": sym, "qty": None, "price": None, "date": None, "mode": "add"}
                 self._reply(
                     target,
-                    f"برای افزودن {sym} بفرستید:\n/pf_add {sym} <تعداد> [قیمت‌خرید]",
-                    reply_markup=main_menu_keyboard(),
+                    f"➕ افزودن {sym} به سبد\n\n"
+                    f"📊 قیمت فعلی {sym}: در حال دریافت…\n\n"
+                    f"🔢 تعداد واحد خریداری‌شده را وارد کنید:\n"
+                    f"(مثال: 100)",
+                    reply_markup=None,
                 )
             elif data.startswith("pfdel:"):
                 sym = data.split(":", 1)[1]
@@ -248,10 +359,17 @@ class SandoghchiBot:
                 self._reply(target, f"ویرایش {sym} — انتخاب کنید:", reply_markup=pf_edit_action_keyboard(sym))
             elif data.startswith("pfedit_buy:"):
                 sym = data.split(":", 1)[1]
-                self._reply(target, f"خرید بیشتر {sym} — دستور بفرستید:\n/pf_add {sym} <تعداد> [قیمت]")
+                uid_w = user_id or target
+                self._pf_wizard[uid_w] = {"step": "qty", "symbol": sym, "qty": None, "price": None, "date": None, "mode": "buy_more"}
+                self._reply(target, f"📈 خرید بیشتر {sym}\n\n🔢 تعداد واحد را وارد کنید:", reply_markup=None)
             elif data.startswith("pfedit_sell:"):
                 sym = data.split(":", 1)[1]
-                self._reply(target, f"فروش بخشی {sym} — دستور بفرستید:\n/pf_sell {sym} <تعداد> [قیمت]")
+                uid_w = user_id or target
+                self._pf_wizard[uid_w] = {"step": "qty", "symbol": sym, "qty": None, "price": None, "date": None, "mode": "sell"}
+                self._reply(target, f"📉 فروش بخشی {sym}\n\n🔢 تعداد واحد فروخته‌شده را وارد کنید:", reply_markup=None)
+            elif data.startswith("pfwiz_confirm:"):
+                wuid = data.split(":", 1)[1]
+                self._handle_pf_wizard_confirm(target, wuid)
             elif data.startswith("cat_best:"):
                 cat = data.split(":", 1)[1].replace("_", " ")
                 meta = get_cached_payload()
