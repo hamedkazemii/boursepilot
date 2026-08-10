@@ -505,8 +505,9 @@ class SandoghchiBot:
                 self._reply(chat_id, f"سرمایه ثبت شد: {num:,.0f}", reply_markup=main_menu_keyboard())
             elif cmd in {"portfolio", "pf"}:
                 self._send_my_portfolio(chat_id, uid)
-            elif cmd in {"pf_add", "add"}:
-                self._cmd_pf_add(chat_id, uid, args)
+            elif cmd == "pf_add":
+                self._pf_wizard[uid] = {"step": "price", "symbol": args, "qty": None, "price": None, "date": None, "current": None, "mode": "add"}
+                self._reply(chat_id, "حتماً، با هم به سبدت اضافه‌اش می‌کنیم.\nصندوق " + args + " رو پیدا کردم.\n\nقیمت خرید هر واحد رو به ریال بگو.", reply_markup=cancel_only_keyboard())
             elif cmd in {"pf_del", "del"}:
                 if not args:
                     self._reply(chat_id, "مثال: /pf_del عیار")
