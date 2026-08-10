@@ -857,9 +857,22 @@ class SandoghchiBot:
         """تحلیل عمیق تک صندوق (Layer 1/2/3)."""
         symbol = symbol.strip()
         ranked = self._get_ranked()
+        # 1. Exact symbol match (highest priority)
         for a in ranked:
-            if a.symbol == symbol or symbol in a.symbol or symbol in (a.name or ""):
+            if a.symbol == symbol:
                 return format_fund_deepdive_brand(a)
+        # 2. Exact name match
+        for a in ranked:
+            if (a.name or "").strip() == symbol:
+                return format_fund_deepdive_brand(a)
+        # 3. Partial symbol match (unique only)
+        partial = [a for a in ranked if symbol in a.symbol]
+        if len(partial) == 1:
+            return format_fund_deepdive_brand(partial[0])
+        # 4. Partial name match (unique only)
+        partial = [a for a in ranked if symbol in (a.name or "")]
+        if len(partial) == 1:
+            return format_fund_deepdive_brand(partial[0])
         if self.provider:
             try:
                 q = self.provider.get_symbol(symbol)
