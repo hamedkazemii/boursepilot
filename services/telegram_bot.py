@@ -191,71 +191,75 @@ class SandoghchiBot:
             return
 
     def _handle_pf_wizard(self, chat_id: str, text: str, uid: str, user: Optional[dict] = None) -> None:
-        """راهنمای گام‌به‌گام افزودن/ویرایش صندوق در سبد."""
+        """راهنمای گام‌به‌گام افزودن/ویرایش صندوق در سبد — هر مرحله فقط یک سؤال."""
         w = self._pf_wizard.get(uid)
         if not w:
             return
         step = w.get("step")
-        if step == "qty":
-            qty = _parse_number(text)
-            if qty is None or qty <= 0:
-                self._reply(chat_id, "🔢 تعداد نامعتبر است. یک عدد مثبت بفرستید (مثال: 100):")
-                return
-            w["qty"] = qty
-            w["step"] = "price"
-            self._reply(
-                chat_id,
-                f"🔢 تعداد ثبت شد: {qty:g}\n\n"
-                f"💵 قیمت خرید هر واحد (به ریال) را وارد کنید:\n"
-                f"(مثال: 25000)",
-                reply_markup=None,
-            )
-        elif step == "price":
+        mode = w.get("mode", "add")
+        sym = w.get("symbol", "")
+        if step == "price":
             price = _parse_number(text)
             if price is None or price <= 0:
-                self._reply(chat_id, "💵 قیمت نامعتبر است. عدد مثبت بفرستید (مثال: 25000):")
+                self._reply(chat_id, "این مقدار رو نتونستم تشخیص بدم. قیمت خرید هر واحد رو به ریال بفرست:", reply_markup=cancel_only_keyboard())
                 return
             w["price"] = price
+            w["step"] = "qty"
+            self._reply(
+                chat_id,
+                f"قیمت {price:,.0f} ریال ثبت شد.\n\nچند واحد ازش خریدی؟",
+                reply_markup=cancel_only_keyboard(),
+            )
+        elif step == "qty":
+            qty = _parse_number(text)
+            if qty is None or qty <= 0:
+                self._reply(chat_id, "این مقدار رو نتونستم تشخیص بدم. تعداد واحد رو بفرست:", reply_markup=cancel_only_keyboard())
+                return
+            w["qty"] = qty
             w["step"] = "date"
             self._reply(
                 chat_id,
-                f"💵 قیمت ثبت شد: {price:,.0f} ریال\n\n"
-                f"📅 تاریخ دقیق خرید را بفرستید (مثال: 1404/05/20):",
-                reply_markup=None,
+                f"تعداد {qty:g} واحد ثبت شد.\n\nچه تاریخی خریدیش؟\nمثلاً ۱۴۰۵/۰۵/۱۹",
+                reply_markup=cancel_only_keyboard(),
             )
         elif step == "date":
             w["date"] = text.strip()
+            w["step"] = "current"
+            self._reply(
+                chat_id,
+                "تاریخ ثبت شد.\n\nالان چند واحد از این صندوق داری؟",
+                reply_markup=cancel_only_keyboard(),
+            )
+        elif step == "current":
+            cur = _parse_number(text)
+            if cur is None or cur < 0:
+                self._reply(chat_id, "این مقدار رو نتونستم تشخیص بدم. تعداد فعلی رو بفرست:", reply_markup=cancel_only_keyboard())
+                return
+            w["current"] = cur
             w["step"] = "confirm"
-            mode = w.get("mode", "add")
-            sym = w.get("symbol", "")
             qty = w.get("qty", 0)
             price = w.get("price", 0)
             if mode == "sell":
                 lines = [
-                    f"📉 فروش {sym}\n",
-                    f"🔢 تعداد: {qty:g}\n",
-                    f"💵 قیمت فروش: {price:,.0f} ریال\n",
-                    f"📅 تاریخ: {w['date']}\n",
-                    f"💰 ارزش فروش: {qty * price:,.0f} ریال\n",
-                    "\nآیا تأیید می‌کنید؟",
+                    f"خیلی خوب. اطلاعاتی که ازت گرفتم:\n",
+                    f"🟡 صندوق: {sym}",
+                    f"تعداد فروش: {qty:g}",
+                    f"قیمت فروش: {price:,.0f} ریال",
+                    f"تاریخ: {w['date']}",
+                    f"دارایی فعلی: {cur:g} واحد",
+                    "\nهمه‌چیز درسته؟",
                 ]
             else:
                 lines = [
-                    f"➕ افزودن {sym} به سبد\n",
-                    f"🔢 تعداد: {qty:g}\n",
-                    f"💵 قیمت خرید: {price:,.0f} ریال\n",
-                    f"📅 تاریخ: {w['date']}\n",
-                    f"💰 ارزش خرید: {qty * price:,.0f} ریال\n",
-                    "\nآیا تأیید می‌کنید؟",
+                    f"خیلی خوب. اطلاعاتی که ازت گرفتم:\n",
+                    f"🟡 صندوق: {sym}",
+                    f"قیمت خرید: {price:,.0f} ریال",
+                    f"تعداد خرید: {qty:g}",
+                    f"تاریخ خرید: {w['date']}",
+                    f"دارایی فعلی: {cur:g} واحد",
+                    "\nهمه‌چیز درسته؟",
                 ]
-            kb = {
-                "inline_keyboard": [
-                    [
-                        {"text": "✅ تأیید", "callback_data": f"pfwiz_confirm:{uid}"},
-                        {"text": "❌ انصراف", "callback_data": "cmd:menu"},
-                    ]
-                ]
-            }
+            kb = confirm_cancel_keyboard(f"pfwiz_confirm:{uid}")
             self._reply(chat_id, "\n".join(lines), reply_markup=kb)
         else:
             self._pf_wizard.pop(uid, None)
@@ -311,7 +315,12 @@ class SandoghchiBot:
         logger.info("callback %s chat=%s user=%s", data, chat_id, user_id)
         try:
             if data.startswith("cmd:"):
-                self._run_command(target, data.split(":", 1)[1], args="", user=user)
+                cmd = data.split(":", 1)[1]
+                if cmd == "fund_search":
+                    self._reply(target, "حتماً.\nاسم یا نماد صندوقی که می‌خوای بررسی کنم رو برام بفرست.", reply_markup=cancel_only_keyboard())
+                    self._awaiting_fund_search.add(user_id or target)
+                else:
+                    self._run_command(target, cmd, args="", user=user)
             elif data.startswith("fund:"):
                 sym = data.split(":", 1)[1]
                 self._reply(target, self._cmd_fund(sym), reply_markup=fund_actions_keyboard(sym))
@@ -331,48 +340,50 @@ class SandoghchiBot:
             elif data.startswith("pfadd:"):
                 sym = data.split(":", 1)[1]
                 uid_w = user_id or target
-                self._pf_wizard[uid_w] = {"step": "qty", "symbol": sym, "qty": None, "price": None, "date": None, "mode": "add"}
+                self._pf_wizard[uid_w] = {"step": "price", "symbol": sym, "qty": None, "price": None, "date": None, "current": None, "mode": "add"}
                 self._reply(
                     target,
-                    f"➕ افزودن {sym} به سبد\n\n"
-                    f"📊 قیمت فعلی {sym}: در حال دریافت…\n\n"
-                    f"🔢 تعداد واحد خریداری‌شده را وارد کنید:\n"
-                    f"(مثال: 100)",
-                    reply_markup=None,
+                    f"حتماً، با هم به سبدت اضافه‌اش می‌کنیم.\n"
+                    f"صندوق {sym} رو پیدا کردم.\n\n"
+                    f"قیمت خرید هر واحد رو به ریال بهم بگو.",
+                    reply_markup=cancel_only_keyboard(),
                 )
             elif data.startswith("pfdel:"):
+                sym = data.split(":", 1)[1]
+                self._reply(target, f"مطمئنی {sym} رو از سبدت حذف کنیم؟", reply_markup=confirm_delete_keyboard(sym))
+            elif data.startswith("pfdel_confirm:"):
                 sym = data.split(":", 1)[1]
                 self.portfolio.remove_holding(user_id or target, sym)
                 self._reply(target, f"✅ {sym} از سبد حذف شد.", reply_markup=portfolio_actions_keyboard())
             elif data == "cmd:pf_add_prompt":
-                self._reply(target, "برای افزودن صندوق به سبد، نماد را انتخاب کنید یا بفرستید:", reply_markup=pf_add_prompt_keyboard())
+                self._reply(target, "حتماً. اول اسم یا نماد صندوق رو بفرست.", reply_markup=pf_add_prompt_keyboard())
             elif data == "cmd:pf_del_prompt":
                 pf = self.portfolio.get_portfolio(user_id or target)
                 symbols = [item["symbol"] for item in pf["items"]]
                 if not symbols:
-                    self._reply(target, "سبد شما خالی است.", reply_markup=portfolio_actions_keyboard())
+                    self._reply(target, "سبد تو خالیه.", reply_markup=portfolio_actions_keyboard())
                 else:
-                    self._reply(target, "صندوقی که می‌خواهید حذف کنید را انتخاب کنید:", reply_markup=pf_del_prompt_keyboard(symbols))
+                    self._reply(target, "باشه. کدوم صندوق رو می‌خوای از سبدت حذف کنیم؟", reply_markup=pf_del_prompt_keyboard(symbols))
             elif data == "cmd:pf_edit_prompt":
                 pf = self.portfolio.get_portfolio(user_id or target)
                 symbols = [item["symbol"] for item in pf["items"]]
                 if not symbols:
-                    self._reply(target, "سبد شما خالی است.", reply_markup=portfolio_actions_keyboard())
+                    self._reply(target, "سبد تو خالیه.", reply_markup=portfolio_actions_keyboard())
                 else:
-                    self._reply(target, "صندوقی که می‌خواهید ویرایش کنید را انتخاب کنید:", reply_markup=pf_edit_prompt_keyboard(symbols))
+                    self._reply(target, "حتماً. اول بگو کدوم صندوق رو می‌خوای تغییر بدی.", reply_markup=pf_edit_prompt_keyboard(symbols))
             elif data.startswith("pfedit:"):
                 sym = data.split(":", 1)[1]
                 self._reply(target, f"ویرایش {sym} — انتخاب کنید:", reply_markup=pf_edit_action_keyboard(sym))
             elif data.startswith("pfedit_buy:"):
                 sym = data.split(":", 1)[1]
                 uid_w = user_id or target
-                self._pf_wizard[uid_w] = {"step": "qty", "symbol": sym, "qty": None, "price": None, "date": None, "mode": "buy_more"}
-                self._reply(target, f"📈 خرید بیشتر {sym}\n\n🔢 تعداد واحد را وارد کنید:", reply_markup=None)
+                self._pf_wizard[uid_w] = {"step": "price", "symbol": sym, "qty": None, "price": None, "date": None, "current": None, "mode": "buy_more"}
+                self._reply(target, f"📈 خرید بیشتر {sym}\n\nقیمت خرید هر واحد رو به ریال بهم بگو.", reply_markup=cancel_only_keyboard())
             elif data.startswith("pfedit_sell:"):
                 sym = data.split(":", 1)[1]
                 uid_w = user_id or target
-                self._pf_wizard[uid_w] = {"step": "qty", "symbol": sym, "qty": None, "price": None, "date": None, "mode": "sell"}
-                self._reply(target, f"📉 فروش بخشی {sym}\n\n🔢 تعداد واحد فروخته‌شده را وارد کنید:", reply_markup=None)
+                self._pf_wizard[uid_w] = {"step": "price", "symbol": sym, "qty": None, "price": None, "date": None, "current": None, "mode": "sell"}
+                self._reply(target, f"📉 فروش بخشی {sym}\n\nقیمت فروش هر واحد رو به ریال بهم بگو.", reply_markup=cancel_only_keyboard())
             elif data.startswith("pfwiz_confirm:"):
                 wuid = data.split(":", 1)[1]
                 self._handle_pf_wizard_confirm(target, wuid)
@@ -436,7 +447,7 @@ class SandoghchiBot:
             elif cmd == "pf_risk":
                 self._send_my_portfolio(chat_id, uid)
             elif cmd == "fund_search":
-                self._reply(chat_id, "نام یا نماد صندوق را بفرستید (مثال: عیار یا ۱۲۳۴۵۶۷۸۹۰)", reply_markup=main_menu_keyboard())
+                self._reply(chat_id, "حتماً.\nاسم یا نماد صندوقی که می‌خوای بررسی کنم رو برام بفرست.", reply_markup=cancel_only_keyboard())
                 self._awaiting_fund_search.add(uid)
             elif cmd == "category_best":
                 self._send_category_best(chat_id)
