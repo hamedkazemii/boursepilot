@@ -618,36 +618,33 @@ def format_portfolio_brand(portfolio_items: list[dict], prices: dict[str, float]
         cost = float(item.get("avg_cost") or 0)
         price = prices.get(sym)
         
-        # Sanity check: flag suspicious prices (e.g., gold funds < 10k, or >100x diff)
-        use_cost = False
+        # Sanity check: flag suspicious prices but still show market calculation
+        warning = ""
         if price is not None and price > 0:
-            # Gold funds should be high price
             fund_name = item.get("name", "").lower()
             is_gold = "طلا" in fund_name or "gold" in fund_name.lower()
             if is_gold and price < 10000:
-                use_cost = True  # likely corrupted data
+                warning = " ⚠️ قیمت لحظه‌ای پایین (احتمال خرابی داده)"
             elif cost > 0 and price > cost * 100:
-                use_cost = True  # unrealistic 100x jump
+                warning = " ⚠️ قیمت ۱۰۰x بهای تمام‌شده (بررسی کنید)"
             elif cost > 0 and cost > price * 100:
-                use_cost = True  # unrealistic 100x drop (data corruption)
+                warning = " ⚠️ بهای تمام‌شده ۱۰۰x قیمت (احتمال داده خراب)"
         
-        if use_cost or price is None or price <= 0:
+        if price is None or price <= 0:
             price = cost
-            val = qty * price
-            cval = val
-            pnl_pct = 0.0
-            l2_lines.append(f"  ⚠️ {sym}: قیمت بازار مشکوک — از بهای تمام‌شده استفاده شد ({_fmt_money(val)})")
-        else:
-            val = qty * price
-            cval = qty * cost
-            total_value += val
-            total_cost += cval
-            pnl = val - cval
-            pnl_pct = (pnl / cval * 100) if cval else 0.0
-            weight = (val / total_value * 100) if total_value > 0 else 0
+            warning = " ⚠️ قیمت بازار در دسترس نیست"
+        
+        val = qty * price
+        cval = qty * cost
+        total_value += val
+        total_cost += cval
 
-            pnl_emoji = "🟢" if pnl_pct > 2 else "🟡" if pnl_pct > -2 else "🔴"
-            l2_lines.append(f"  {pnl_emoji} {sym}: {weight:.0f}% | {pnl_pct:+.1f}% | {qty:g} واحد | ارزش: {_fmt_money(val)}")
+        pnl = val - cval
+        pnl_pct = (pnl / cval * 100) if cval else 0.0
+        weight = (val / total_value * 100) if total_value > 0 else 0
+
+        pnl_emoji = "🟢" if pnl_pct > 2 else "🟡" if pnl_pct > -2 else "🔴"
+        l2_lines.append(f"  {pnl_emoji} {sym}: {weight:.0f}% | {pnl_pct:+.1f}% | {qty:g} واحد | ارزش: {_fmt_money(val)}{warning}")
 
     total_pnl = total_value - total_cost
     total_pnl_pct = (total_pnl / total_cost * 100) if total_cost else 0
