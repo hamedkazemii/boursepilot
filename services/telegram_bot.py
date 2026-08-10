@@ -48,6 +48,8 @@ from services.telegram.keyboards import (
     portfolio_actions_keyboard,
     pf_add_prompt_keyboard,
     pf_del_prompt_keyboard,
+    pf_edit_prompt_keyboard,
+    pf_edit_action_keyboard,
     risk_profile_keyboard,
 )
 from services.telegram.rank_loader import get_cached_payload, load_rankings
@@ -234,6 +236,22 @@ class SandoghchiBot:
                     self._reply(target, "سبد شما خالی است.", reply_markup=portfolio_actions_keyboard())
                 else:
                     self._reply(target, "صندوقی که می‌خواهید حذف کنید را انتخاب کنید:", reply_markup=pf_del_prompt_keyboard(symbols))
+            elif data == "cmd:pf_edit_prompt":
+                pf = self.portfolio.get_portfolio(user_id or target)
+                symbols = [item["symbol"] for item in pf["items"]]
+                if not symbols:
+                    self._reply(target, "سبد شما خالی است.", reply_markup=portfolio_actions_keyboard())
+                else:
+                    self._reply(target, "صندوقی که می‌خواهید ویرایش کنید را انتخاب کنید:", reply_markup=pf_edit_prompt_keyboard(symbols))
+            elif data.startswith("pfedit:"):
+                sym = data.split(":", 1)[1]
+                self._reply(target, f"ویرایش {sym} — انتخاب کنید:", reply_markup=pf_edit_action_keyboard(sym))
+            elif data.startswith("pfedit_buy:"):
+                sym = data.split(":", 1)[1]
+                self._reply(target, f"خرید بیشتر {sym} — دستور بفرستید:\n/pf_add {sym} <تعداد> [قیمت]")
+            elif data.startswith("pfedit_sell:"):
+                sym = data.split(":", 1)[1]
+                self._reply(target, f"فروش بخشی {sym} — دستور بفرستید:\n/pf_sell {sym} <تعداد> [قیمت]")
             elif data.startswith("cat_best:"):
                 cat = data.split(":", 1)[1].replace("_", " ")
                 meta = get_cached_payload()
