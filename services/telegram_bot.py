@@ -50,7 +50,6 @@ from services.telegram.keyboards import (
     fund_actions_keyboard,
     help_text,
     main_menu_keyboard,
-    pf_add_prompt_keyboard,
     pf_add_select_keyboard,
     pf_del_prompt_keyboard,
     pf_edit_action_keyboard,
@@ -182,10 +181,9 @@ class SandoghchiBot:
             self._awaiting_ask.discard(uid)
             self._cmd_ask(chat_id, text, user=user)
             return
-        # 4. Fund analysis flow
+        # 4. Fund analysis flow (only when explicitly requested)
         if uid in self._awaiting_fund_search:
-            self._awaiting_fund_search.discard(uid)
-            self._reply(chat_id, self._cmd_fund(text.split()[0]), reply_markup=fund_actions_keyboard(text.split()[0]))
+            self._handle_fund_analysis_input(chat_id, text, uid)
             return
         # 5. No active flow - ignore free text, show main menu
         if chat.get("type") == "private":
@@ -200,6 +198,10 @@ class SandoghchiBot:
         step = w.get("step")
         mode = w.get("mode", "add")
         sym = w.get("symbol", "")
+        if step == "symbol":
+            # Search for fund by name/symbol within wizard context
+            self._handle_wizard_fund_search(chat_id, text, uid, w, user)
+            return
         if step == "price":
             price = _parse_number(text)
             if price is None or price <= 0:
@@ -243,23 +245,23 @@ class SandoghchiBot:
             price = w.get("price", 0)
             if mode == "sell":
                 lines = [
-                    f"خیلی خوب. اطلاعاتی که ازت گرفتم:\n",
-                    f"🟡 صندوق: {sym}",
-                    f"تعداد فروش: {qty:g}",
+                    f"📋 اطلاعات فروش\n━━━━━━━━━━━━━━━━━━━━━━\n",
+                    f"صندوق: {sym}",
                     f"قیمت فروش: {price:,.0f} ریال",
-                    f"تاریخ: {w['date']}",
-                    f"دارایی فعلی: {cur:g} واحد",
-                    "\nهمه‌چیز درسته؟",
+                    f"تعداد فروش: {qty:g}",
+                    f"تاریخ فروش: {w['date']}",
+                    f"دارایی فعلی: {cur:g}",
+                    "\nاطلاعات درسته؟",
                 ]
             else:
                 lines = [
-                    f"خیلی خوب. اطلاعاتی که ازت گرفتم:\n",
-                    f"🟡 صندوق: {sym}",
+                    f"📋 اطلاعات خرید\n━━━━━━━━━━━━━━━━━━━━━━\n",
+                    f"صندوق: {sym}",
                     f"قیمت خرید: {price:,.0f} ریال",
                     f"تعداد خرید: {qty:g}",
                     f"تاریخ خرید: {w['date']}",
-                    f"دارایی فعلی: {cur:g} واحد",
-                    "\nهمه‌چیز درسته؟",
+                    f"دارایی فعلی: {cur:g}",
+                    "\nاطلاعات درسته؟",
                 ]
             kb = confirm_cancel_keyboard(f"pfwiz_confirm:{uid}")
             self._reply(chat_id, "\n".join(lines), reply_markup=kb)
@@ -296,6 +298,133 @@ class SandoghchiBot:
                 f"💰 ارزش: {qty * price:,.0f} ریال",
                 reply_markup=portfolio_actions_keyboard(),
             )
+
+    def _handle_fund_analysis_input(self, chat_id: str, text: str, uid: str) -> None:
+        """ورودی تحلیل صندوق - فقط exact match یا clarification، بدون silent fallback."""
+        self._awaiting_fund_search.discard(uid)
+        query = text.strip()
+        if not query:
+            self._reply(chat_id, "اسم یا نماد صندوق رو بفرست.", reply_markup=cancel_only_keyboard())
+            self._awaiting_fund_search.add(uid)
+            return
+
+        ranked = self._get_ranked()
+        matches = []
+        # Exact symbol match first
+        for a in ranked:
+            if a.symbol == query:
+                matches = [a]
+                break
+        # Exact name match
+        if not matches:
+            for a in ranked:
+                if (a.name or "").strip() == query:
+                    matches = [a]
+                    break
+        # Single partial match (unique)
+        if not matches:
+            partial = [a for a in ranked if query in a.symbol or query in (a.name or "")]
+            if len(partial) == 1:
+                matches = partial
+
+        if len(matches) == 1:
+            a = matches[0]
+            self._reply(chat_id, self._cmd_fund(a.symbol), reply_markup=fund_actions_keyboard(a.symbol))
+        elif len(matches) > 1:
+            options = "\n".join([f"• {a.symbol} — {a.name}" for a in matches[:10]])
+            self._reply(
+                chat_id,
+                f"چند تا صندوق پیدا شد که با «{query}» هم‌خونه:\n\n{options}\n\n"
+                f"لطفاً نماد دقیق‌تر رو بفرست.",
+                reply_markup=cancel_only_keyboard(),
+            )
+            self._awaiting_fund_search.add(uid)
+        else:
+            self._reply(
+                chat_id,
+                f"صندوقی با نام یا نماد «{query}» پیدا نکردم.\n\n"
+                f"لطفاً نام یا نماد دقیق صندوق رو دوباره بفرست.",
+                reply_markup=cancel_only_keyboard(),
+            )
+            self._awaiting_fund_search.add(uid)
+
+    def _handle_wizard_fund_search(self, chat_id: str, text: str, uid: str, wizard: dict, user: Optional[dict] = None) -> None:
+        """جستجوی صندوق در حین wizard - فقط exact match یا clarification."""
+        catalog = self._get_fund_catalog()
+        if not catalog:
+            self._reply(chat_id, "داده صندوق‌ها در دسترس نیست. لطفاً بعداً تلاش کن.", reply_markup=cancel_only_keyboard())
+            return
+
+        query = text.strip()
+        matches = []
+
+        # Exact symbol match first
+        for f in catalog:
+            if f.get("symbol", "").lower() == query.lower():
+                matches = [f]
+                break
+
+        # Exact name match
+        if not matches:
+            for f in catalog:
+                if f.get("name", "").lower() == query.lower():
+                    matches = [f]
+                    break
+
+        # Partial symbol/name match
+        if not matches:
+            for f in catalog:
+                if query.lower() in f.get("symbol", "").lower() or query.lower() in f.get("name", "").lower():
+                    matches.append(f)
+
+        if len(matches) == 1:
+            # Found exact match
+            fund = matches[0]
+            sym = fund.get("symbol", "")
+            wizard["symbol"] = sym
+            wizard["step"] = "price"
+            self._reply(
+                chat_id,
+                f"عالیه 🌱\n\nصندوق «{fund.get('name', sym)}» رو پیدا کردم.\n\n"
+                f"حالا بریم سراغ اطلاعات خرید.\n"
+                f"قیمت خرید هر واحد رو به ریال برام بنویس.\n\n"
+                f"مثال:\n125000",
+                reply_markup=cancel_only_keyboard(),
+            )
+        elif len(matches) > 1:
+            # Multiple matches - ask for clarification
+            options = "\n".join([f"• {f.get('symbol', '')} — {f.get('name', '')}" for f in matches[:10]])
+            self._reply(
+                chat_id,
+                f"چند تا صندوق پیدا شد که با «{query}» هم‌خونه:\n\n{options}\n\n"
+                f"لطفاً نام یا نماد دقیق‌تر رو بفرست.",
+                reply_markup=cancel_only_keyboard(),
+            )
+        else:
+            # No match
+            self._reply(
+                chat_id,
+                f"صندوقی با نام یا نماد «{query}» پیدا نکردم.\n\n"
+                f"لطفاً نام یا نماد دقیق صندوق رو دوباره بفرست.",
+                reply_markup=cancel_only_keyboard(),
+            )
+
+    def _get_fund_catalog(self) -> Optional[list[dict]]:
+        """دریافت کاتالوگ صندوق‌ها از snapshot store (با fallback به ranked list)."""
+        try:
+            latest = self.store.load_json("fund_catalog")
+            if latest and isinstance(latest, dict) and "funds" in latest and latest["funds"]:
+                return latest["funds"]
+        except Exception:
+            pass
+        # Fallback: use ranked assessments as catalog
+        try:
+            ranked = self._get_ranked()
+            if ranked:
+                return [{"symbol": a.symbol, "name": a.name or ""} for a in ranked]
+        except Exception:
+            pass
+        return None
 
     def _handle_callback(self, cq: dict[str, Any]) -> None:
         cq_id = str(cq.get("id") or "")
@@ -358,7 +487,15 @@ class SandoghchiBot:
                 self.portfolio.remove_holding(user_id or target, sym)
                 self._reply(target, f"✅ {sym} از سبد حذف شد.", reply_markup=portfolio_actions_keyboard())
             elif data == "cmd:pf_add_prompt":
-                self._reply(target, "حتماً. اول اسم یا نماد صندوق رو بفرست.", reply_markup=pf_add_prompt_keyboard())
+                # Show top funds from ranked list as inline buttons
+                ranked = self._get_ranked()
+                symbols = [a.symbol for a in ranked[:5]]
+                uid_w = user_id or target
+                self._pf_wizard[uid_w] = {"step": "symbol", "symbol": "", "qty": None, "price": None, "date": None, "current": None, "mode": "add"}
+                if symbols:
+                    self._reply(target, "حتماً. اول اسم یا نماد صندوق رو بفرست، یا یکی از برترین‌های امروز رو انتخاب کن:", reply_markup=pf_add_select_keyboard(symbols))
+                else:
+                    self._reply(target, "حتماً. اول اسم یا نماد صندوق رو بفرست.", reply_markup=cancel_only_keyboard())
             elif data == "cmd:pf_del_prompt":
                 pf = self.portfolio.get_portfolio(user_id or target)
                 symbols = [item["symbol"] for item in pf["items"]]
@@ -389,6 +526,10 @@ class SandoghchiBot:
             elif data.startswith("pfwiz_confirm:"):
                 wuid = data.split(":", 1)[1]
                 self._handle_pf_wizard_confirm(target, wuid)
+            elif data.startswith("pfwiz_cancel:"):
+                wuid = data.split(":", 1)[1]
+                self._pf_wizard.pop(wuid, None)
+                self._reply(target, "انصراف دادیم. هر وقت خواستی می‌تونیم ادامه بدیم.", reply_markup=portfolio_actions_keyboard())
             elif data.startswith("cat_best:"):
                 cat = data.split(":", 1)[1].replace("_", " ")
                 meta = get_cached_payload()
@@ -465,7 +606,13 @@ class SandoghchiBot:
                 text = "⭐ پیگیری‌های شما:\n" + ("\n".join(f"• {x}" for x in items) if items else "خالی")
                 self._reply(chat_id, text, reply_markup=after_report_keyboard())
             elif cmd == "pf_add_prompt":
-                self._reply(chat_id, "حتماً. اول اسم یا نماد صندوق رو بفرست.", reply_markup=pf_add_prompt_keyboard())
+                ranked = self._get_ranked()
+                symbols = [a.symbol for a in ranked[:5]]
+                self._pf_wizard[uid] = {"step": "symbol", "symbol": "", "qty": None, "price": None, "date": None, "current": None, "mode": "add"}
+                if symbols:
+                    self._reply(chat_id, "حتماً. اول اسم یا نماد صندوق رو بفرست، یا یکی از برترین‌های امروز رو انتخاب کن:", reply_markup=pf_add_select_keyboard(symbols))
+                else:
+                    self._reply(chat_id, "حتماً. اول اسم یا نماد صندوق رو بفرست.", reply_markup=cancel_only_keyboard())
             elif cmd == "pf_del_prompt":
                 pf = self.portfolio.get_portfolio(uid)
                 symbols = [item["symbol"] for item in pf["items"]]
