@@ -208,6 +208,20 @@ class SandoghchiBot:
                 self._reply(chat_id, "این مقدار رو نتونستم تشخیص بدم. قیمت خرید هر واحد رو به ریال بفرست:", reply_markup=cancel_only_keyboard())
                 return
             w["price"] = price
+            if mode == "fix":
+                # fix mode: only price changes, qty stays same → straight to confirm
+                w["step"] = "confirm"
+                qty = w.get("qty", 0)
+                lines = [
+                    f"✏️ اصلاح اطلاعات\n━━━━━━━━━━━━━━━━━━━━━━\n",
+                    f"صندوق: {sym}",
+                    f"قیمت خرید جدید: {price:,.0f} ریال",
+                    f"تعداد: {qty:g} واحد",
+                    "\nاطلاعات درسته؟",
+                ]
+                kb = confirm_cancel_keyboard(f"pfwiz_confirm:{uid}")
+                self._reply(chat_id, "\n".join(lines), reply_markup=kb)
+                return
             w["step"] = "qty"
             self._reply(
                 chat_id,
@@ -523,6 +537,32 @@ class SandoghchiBot:
                 uid_w = user_id or target
                 self._pf_wizard[uid_w] = {"step": "price", "symbol": sym, "qty": None, "price": None, "date": None, "current": None, "mode": "sell"}
                 self._reply(target, f"📉 فروش بخشی {sym}\n\nقیمت فروش هر واحد رو به ریال بهم بگو.", reply_markup=cancel_only_keyboard())
+            elif data.startswith("pfedit_fix:"):
+                sym = data.split(":", 1)[1]
+                pf = self.portfolio.get_portfolio(user_id or target)
+                item = next((i for i in pf["items"] if i["symbol"] == sym), None)
+                if not item:
+                    self._reply(target, f"صندوق {sym} در سبد پیدا نشد.", reply_markup=portfolio_actions_keyboard())
+                    return
+                uid_w = user_id or target
+                # Pre-fill with current values
+                self._pf_wizard[uid_w] = {
+                    "step": "price",
+                    "symbol": sym,
+                    "qty": float(item.get("quantity") or 0),
+                    "price": None,
+                    "date": None,
+                    "current": None,
+                    "mode": "fix"
+                }
+                self._reply(
+                    target,
+                    f"✏️ اصلاح اطلاعات {sym}\n\n"
+                    f"تعداد فعلی: {item.get('quantity', 0):g} واحد\n"
+                    f"قیمت خرید قبلی: {item.get('avg_cost', 0):,.0f} ریال\n\n"
+                    f"قیمت خرید جدید هر واحد رو بفرست (یا همون قبلی رو تکرار کن):",
+                    reply_markup=cancel_only_keyboard(),
+                )
             elif data.startswith("pfwiz_confirm:"):
                 wuid = data.split(":", 1)[1]
                 self._handle_pf_wizard_confirm(target, wuid)
