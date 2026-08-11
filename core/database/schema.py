@@ -76,7 +76,8 @@ CREATE TABLE IF NOT EXISTS history (
     volume REAL,
     value REAL,
     trade_count INTEGER,
-    change_pct REAL,
+    change_pct REAL,           -- change_close_pct (pcp)
+    change_last_pct REAL,      -- change_last_pct (plp)
     bid_qty REAL,
     ask_qty REAL,
     buy_real_volume REAL,
@@ -355,6 +356,12 @@ def apply_schema(conn: sqlite3.Connection) -> None:
         pass  # Column already exists
     try:
         conn.execute("ALTER TABLE fund_indicators ADD COLUMN momentum_score REAL")
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+
+    # Migration: add change_last_pct column to history table
+    try:
+        conn.execute("ALTER TABLE history ADD COLUMN change_last_pct REAL")
     except sqlite3.OperationalError:
         pass  # Column already exists
     
