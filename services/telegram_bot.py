@@ -658,7 +658,8 @@ class SandoghchiBot:
             elif cmd == "my_portfolio":
                 self._send_my_portfolio(chat_id, uid)
             elif cmd == "pf_risk":
-                self._send_my_portfolio(chat_id, uid)
+                # «تحلیل سبد من» → تحلیل واقعی دو‌سطحی (نه Overview)
+                self._send_my_portfolio_analysis(chat_id, uid)
             elif cmd == "fund_search":
                 self._reply(chat_id, "حتماً.\nاسم یا نماد صندوقی که می‌خوای بررسی کنم رو برام بفرست.", reply_markup=cancel_only_keyboard())
                 self._awaiting_fund_search.add(uid)
@@ -816,13 +817,26 @@ class SandoghchiBot:
         self._reply(chat_id, text, reply_markup=after_report_keyboard())
 
     def _send_my_portfolio(self, chat_id: str, uid: str) -> None:
-        """تحلیل سبد کاربر."""
+        """نمای کلی سبد کاربر (Overview)."""
         ranked = self._get_ranked()
         prices = {a.symbol: float(a.last_price or a.close_price or 0) for a in ranked if a.last_price or a.close_price}
         pf = self.portfolio.get_portfolio(uid)
         u = self.portfolio.ensure_user(uid)
         text = format_portfolio_brand(pf["items"], prices, u, ranked)
         self._reply(chat_id, text, reply_markup=portfolio_actions_keyboard())
+
+    def _send_my_portfolio_analysis(self, chat_id: str, uid: str) -> None:
+        """تحلیل کامل سبد کاربر (Analysis) — دو سطح: هر دارایی + کل سبد."""
+        from services.analysis.portfolio_analyzer import get_portfolio_analysis
+        try:
+            pf = self.portfolio.get_portfolio(uid)
+            user = self.portfolio.ensure_user(uid)
+            portfolio_id = pf["portfolio"]["id"]
+            text = get_portfolio_analysis(int(user["id"]), portfolio_id)
+            self._reply(chat_id, text, reply_markup=portfolio_actions_keyboard())
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("portfolio analysis failed")
+            self._reply(chat_id, f"خطا در تحلیل سبد: {exc}", reply_markup=portfolio_actions_keyboard())
 
     def _send_category_best(self, chat_id: str) -> None:
         """بهترین هر دسته‌بندی."""
