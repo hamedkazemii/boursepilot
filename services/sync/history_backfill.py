@@ -99,7 +99,7 @@ class HistoryBackfillJob:
     def _find_funds_needing_history(self) -> list[dict]:
         """پیدا کردن صندوق‌هایی که تاریخچه کمتر از min_history_days روز دارند."""
         with self.db.transaction() as conn:
-            # صندوق‌های فعال که fund_type != 'سهامی' هستند
+            # صندوق‌های فعال که fund_type صندوق‌های سرمایه‌گذاری هستند
             rows = conn.execute("""
                 SELECT f.id, f.symbol, f.name,
                        COUNT(h.id) as history_count,
@@ -107,7 +107,7 @@ class HistoryBackfillJob:
                        MAX(h.trade_date) as newest_date
                 FROM funds f
                 LEFT JOIN history h ON h.fund_id = f.id
-                WHERE f.is_active = 1 AND f.fund_type != 'سهامی'
+                WHERE f.is_active = 1 AND f.fund_type IN ('طلا', 'کالایی', 'اهرم', 'درآمد ثابت', 'مختلط', 'املاک', 'بخشی')
                 GROUP BY f.id, f.symbol, f.name
                 HAVING history_count < ? OR history_count = 0
                 ORDER BY history_count ASC, f.symbol
