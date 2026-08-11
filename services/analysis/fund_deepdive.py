@@ -62,6 +62,11 @@ class FundDeepDive:
     trend_score: Optional[float] = None
     momentum_score: Optional[float] = None
     
+    # ریسک
+    volatility_20: Optional[float] = None
+    max_drawdown_90: Optional[float] = None
+    sharpe_60: Optional[float] = None
+    
     # روند تاریخی
     chart_1m: str = ""
     chart_3m: str = ""
@@ -204,7 +209,8 @@ class FundDeepDiveBuilder:
         with self.db.transaction() as conn:
             row = conn.execute("""
                 SELECT rsi14, macd, macd_signal, ema20, ema50, ema200,
-                       trend_score, momentum_score
+                       trend_score, momentum_score,
+                       volatility_20, max_drawdown_90, sharpe_60
                 FROM fund_indicators
                 WHERE fund_id = ?
                 ORDER BY as_of_date DESC
@@ -220,6 +226,9 @@ class FundDeepDiveBuilder:
             dive.ema200 = row["ema200"]
             dive.trend_score = row["trend_score"]
             dive.momentum_score = row["momentum_score"]
+            dive.volatility_20 = row["volatility_20"]
+            dive.max_drawdown_90 = row["max_drawdown_90"]
+            dive.sharpe_60 = row["sharpe_60"]
     
     def _fill_charts(self, dive: FundDeepDive, fund) -> None:
         """ساخت نمودارهای متنی برای 1 ماه، 3 ماه، 1 سال"""
