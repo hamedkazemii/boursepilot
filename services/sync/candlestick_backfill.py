@@ -114,6 +114,11 @@ class CandlestickBackfillJob:
             
             result = []
             for row in rows:
+                # Skip derivative products (symbols ending with digit like 2, 4, etc.)
+                symbol = row["symbol"]
+                if symbol[-1].isdigit() and len(symbol) > 1 and symbol[-2] not in '0123456789':
+                    # This is likely a derivative (e.g., "آتیه ملت4")
+                    continue
                 result.append({
                     "fund_id": row["id"],
                     "symbol": row["symbol"],
