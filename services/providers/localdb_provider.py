@@ -203,11 +203,7 @@ class LocalDBProvider:
             volume=row_dict.get("volume"),
             value=row_dict.get("value"),
             change_close_pct=row_dict.get("change_pct"),
-            change_last_pct=(
-                ((row_dict.get("last_price") or 0) - (row_dict.get("yesterday_price") or 0)) / (row_dict.get("yesterday_price") or 1) * 100
-                if row_dict.get("yesterday_price") and row_dict.get("last_price")
-                else row_dict.get("change_pct")
-            ),
+            change_last_pct=row_dict.get("change_last_pct"),
             trade_count=row_dict.get("trade_count"),
             open_price=row_dict.get("open_price"),
             high=row_dict.get("high_price"),

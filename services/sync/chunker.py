@@ -80,7 +80,7 @@ class SyncChunker:
                 chunk_index=i,
                 total_chunks=total_chunks,
                 data=chunk_data,
-                # No checksum here - let SyncChunk.__post_init__ compute chunk-level SHA256
+                checksum=checksum,  # Pass parent batch checksum
                 status="pending",
             )
             chunks.append(chunk)
@@ -246,71 +246,7 @@ class SyncChunker:
         if missing:
             raise ValueError(f"Missing chunks: {sorted(missing)}")
 
-        # Validate checksums
-        parent_checksum = sorted_chunks[0].checksum
-        for chunk in sorted_chunks:
-            if chunk.checksum != parent_checksum:
-                raise ValueError(
-                    f"Chunk {chunk.chunk_id} checksum mismatch "
-                    f"(expected {parent_checksum}, got {chunk.checksum})"
-                )
-
-        # Concatenate
-        return b"".join(c.data for c in sorted_chunks)
-
-    def reassemble_with_manifest(
-        self,
-        chunks: list[SyncChunk],
-        manifest: SyncManifest,
-    ) -> bytes:
-        """
-        Reassemble chunks and validate against a manifest.
-
-        Args:
-            chunks: List of SyncChunk objects (any order).
-            manifest: SyncManifest to validate against.
-
-        Returns:
-            Reassembled compressed byte payload.
-
-        Raises:
-            ValueError: If manifest validation fails or chunks are invalid.
-        """
-        if chunks and not manifest.verify_chunk(chunks[0]):
-            raise ValueError(
-                f"Manifest mismatch: chunk {chunks[0].chunk_id} "
-                f"does not belong to manifest {manifest.batch_id}"
-            )
-
-        return self.reassemble(chunks)
-        """
-        Reassemble chunks into the original compressed payload.
-
-        Chunks are sorted by chunk_index to ensure correct order.
-
-        Args:
-            chunks: List of SyncChunk objects (any order).
-
-        Returns:
-            Reassembled compressed byte payload.
-
-        Raises:
-            ValueError: If chunks are missing or have mismatched checksums.
-        """
-        if not chunks:
-            raise ValueError("Cannot reassemble empty chunk list")
-
-        # Sort by index
-        sorted_chunks = sorted(chunks, key=lambda c: c.chunk_index)
-
-        # Validate all chunks are present
-        expected_indices = set(range(sorted_chunks[0].total_chunks))
-        actual_indices = {c.chunk_index for c in sorted_chunks}
-        missing = expected_indices - actual_indices
-        if missing:
-            raise ValueError(f"Missing chunks: {sorted(missing)}")
-
-        # Validate checksums
+        # Validate checksums - use the parent batch checksum (all chunks share it)
         parent_checksum = sorted_chunks[0].checksum
         for chunk in sorted_chunks:
             if chunk.checksum != parent_checksum:

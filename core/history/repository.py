@@ -169,7 +169,8 @@ class HistoryRepository:
                     UPDATE history SET
                         open_price=?, high_price=?, low_price=?, close_price=?,
                         last_price=?, yesterday_price=?, volume=?, value=?,
-                        trade_count=?, change_pct=?, bid_qty=?, ask_qty=?,
+                        trade_count=?, change_pct=?, change_last_pct=?,
+                        bid_qty=?, ask_qty=?,
                         buy_real_volume=?, sell_real_volume=?,
                         buy_legal_volume=?, sell_legal_volume=?, source=?
                     WHERE id=?
@@ -183,10 +184,10 @@ class HistoryRepository:
                 INSERT INTO history(
                     fund_id, trade_date, open_price, high_price, low_price,
                     close_price, last_price, yesterday_price, volume, value,
-                    trade_count, change_pct, bid_qty, ask_qty,
+                    trade_count, change_pct, change_last_pct, bid_qty, ask_qty,
                     buy_real_volume, sell_real_volume, buy_legal_volume,
                     sell_legal_volume, source, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (fund_id, trade_date) + params + (now,),
             )

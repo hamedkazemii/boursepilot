@@ -23,7 +23,6 @@ CREATE TABLE IF NOT EXISTS funds (
     sector_id INTEGER,
     board TEXT,
     is_active INTEGER NOT NULL DEFAULT 1,
-    is_fund_like INTEGER NOT NULL DEFAULT 0,
     first_seen_at TEXT,
     last_seen_at TEXT,
     updated_at TEXT NOT NULL
@@ -31,7 +30,6 @@ CREATE TABLE IF NOT EXISTS funds (
 
 CREATE INDEX IF NOT EXISTS idx_funds_type ON funds(fund_type);
 CREATE INDEX IF NOT EXISTS idx_funds_ins ON funds(ins_code);
-CREATE INDEX IF NOT EXISTS idx_funds_is_fund_like ON funds(is_fund_like);
 
 -- Fund Universe (Source of Truth: BRS AllSymbols, cs_id=68 only)
 CREATE TABLE IF NOT EXISTS fund_universe (

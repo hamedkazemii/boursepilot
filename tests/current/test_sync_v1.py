@@ -163,31 +163,35 @@ class TestSyncBatch:
 class TestSyncChunk:
     def test_creation(self):
         data = b"hello world"
+        parent_checksum = "def456"
         chunk = SyncChunk(
             chunk_id="chunk-001",
             batch_id="batch-001",
             chunk_index=0,
             total_chunks=1,
             data=data,
+            checksum=parent_checksum,
         )
         assert chunk.chunk_id == "chunk-001"
         assert chunk.chunk_index == 0
         assert chunk.total_chunks == 1
         assert chunk.size_bytes == 11
-        assert chunk.checksum != ""
+        assert chunk.checksum == parent_checksum
         assert chunk.status == "pending"
 
     def test_checksum_is_sha256(self):
         data = b"test data"
+        parent_checksum = "abc123"  # parent batch checksum
         chunk = SyncChunk(
             chunk_id="chunk-002",
             batch_id="batch-001",
             chunk_index=0,
             total_chunks=1,
             data=data,
+            checksum=parent_checksum,
         )
-        expected = hashlib.sha256(data).hexdigest()
-        assert chunk.checksum == expected
+        # checksum is the parent batch checksum, not chunk data hash
+        assert chunk.checksum == parent_checksum
 
     def test_to_dict(self):
         data = b"test"
@@ -408,7 +412,7 @@ class TestSyncChunker:
 
     def test_default_chunk_size(self):
         chunker = SyncChunker()
-        assert chunker.chunk_size == 5120  # 5KB default
+        assert chunker.chunk_size == 4800  # 4.8KB default (MTU-safe)
 
     def test_pending_chunks(self):
         chunker = SyncChunker(chunk_size=5120)

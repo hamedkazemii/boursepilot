@@ -196,19 +196,13 @@ class SyncChunk:
     chunk_index: int
     total_chunks: int
     data: bytes  # compressed payload bytes for this chunk
-    checksum: str = ""
+    checksum: str = ""  # parent batch checksum (SHA-256 of full compressed payload)
     size_bytes: int = 0
     attempts: int = 0
     last_attempt_at: Optional[str] = None
     status: str = "pending"  # pending | sent | acked | failed
 
     def __post_init__(self) -> None:
-        if not self.checksum:
-            object.__setattr__(
-                self,
-                "checksum",
-                _sha256_hex(self.data),
-            )
         if self.size_bytes == 0:
             object.__setattr__(self, "size_bytes", len(self.data))
 
