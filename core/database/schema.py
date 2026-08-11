@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -32,6 +32,36 @@ CREATE TABLE IF NOT EXISTS funds (
 CREATE INDEX IF NOT EXISTS idx_funds_type ON funds(fund_type);
 CREATE INDEX IF NOT EXISTS idx_funds_ins ON funds(ins_code);
 CREATE INDEX IF NOT EXISTS idx_funds_is_fund_like ON funds(is_fund_like);
+
+-- Fund Universe (Source of Truth: BRS AllSymbols, cs_id=68 only)
+CREATE TABLE IF NOT EXISTS fund_universe (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    symbol TEXT NOT NULL,
+    name TEXT NOT NULL,
+    isin TEXT UNIQUE,
+    ins_code TEXT,
+    cs TEXT NOT NULL,
+    cs_id INTEGER NOT NULL,
+    cs_sub TEXT,
+    cs_sub_id INTEGER,
+    board TEXT,
+    board_id INTEGER,
+    shares INTEGER,
+    market_value INTEGER,
+    last_price REAL,
+    close_price REAL,
+    yesterday_price REAL,
+    nav_issue REAL,
+    nav_redeem REAL,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    synced_at TEXT NOT NULL,
+    UNIQUE(isin) ON CONFLICT REPLACE
+);
+
+CREATE INDEX IF NOT EXISTS idx_fund_universe_symbol ON fund_universe(symbol);
+CREATE INDEX IF NOT EXISTS idx_fund_universe_isin ON fund_universe(isin);
+CREATE INDEX IF NOT EXISTS idx_fund_universe_ins_code ON fund_universe(ins_code);
+CREATE INDEX IF NOT EXISTS idx_fund_universe_active ON fund_universe(is_active);
 
 CREATE TABLE IF NOT EXISTS history (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
