@@ -129,8 +129,22 @@ class FundUniverseBuilder:
         entries = []
         for s in fund_symbols:
             try:
+                symbol = s.get("l18", "").strip()
+                
+                # Skip derivative products (symbols ending with digit suffix like 2, 3, 4)
+                # These are options/rights/futures, not base funds
+                if symbol and symbol[-1].isdigit() and len(symbol) > 1:
+                    # Check if the digit is a derivative suffix (not part of the name)
+                    # e.g., "آتیه ملت4" -> base "آتیه ملت"
+                    # We need to be careful not to filter out symbols that naturally end with digit
+                    # Heuristic: if removing the last digit gives a symbol that also exists, it's a derivative
+                    # For now, filter common derivative suffixes 2, 3, 4
+                    if symbol[-1] in ('2', '3', '4'):
+                        logger.debug(f"Skipping derivative symbol: {symbol}")
+                        continue
+                
                 entry = FundUniverseEntry(
-                    symbol=s.get("l18", "").strip(),
+                    symbol=symbol,
                     name=s.get("l30", "").strip(),
                     isin=s.get("isin"),
                     ins_code=str(s.get("id")) if s.get("id") else None,
@@ -153,7 +167,7 @@ class FundUniverseBuilder:
             except Exception as e:
                 logger.warning(f"Failed to build entry for {s.get('l18', 'unknown')}: {e}")
         
-        logger.info(f"Built {len(entries)} fund entries")
+        logger.info(f"Built {len(entries)} fund entries (after derivative filter)")
         return entries
     
     def deduplicate(self, entries: list[FundUniverseEntry]) -> list[FundUniverseEntry]:
