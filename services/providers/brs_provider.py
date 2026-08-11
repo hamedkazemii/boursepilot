@@ -388,7 +388,7 @@ class BrsProvider:
         if isinstance(payload, list):
             return payload
         if isinstance(payload, dict):
-            for key in ("data", "items", "result", "symbols", "announcement"):
+            for key in ("data", "items", "result", "symbols", "announcement", "candle_daily_adjusted", "candle_intraday", "candle_daily_unadjusted"):
                 if isinstance(payload.get(key), list):
                     return payload[key]
             raise ProviderHTTPError(f"پاسخ {context} لیست نیست", payload=payload)
