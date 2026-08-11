@@ -58,11 +58,11 @@ class Settings:
     GATEWAY_TIMEOUT_SECONDS: float = _env_float("GATEWAY_TIMEOUT_SECONDS", 300.0)
 
     # --- BRS Market Data API (fallback / direct when no Gateway) ---
-    # Base رسمی مستندات: https://Api.BrsApi.ir/Tsetmc
+    # Base رسمی مستندات: https://Api.BrsApi.ir
     BRS_API_KEY: str = _env("BRS_API_KEY", "")
     BRS_BASE_URL: str = _env(
         "BRS_BASE_URL",
-        "https://Api.BrsApi.ir/Tsetmc",
+        "https://Api.BrsApi.ir",
     )
     # فایروال BrsApi به User-Agent پیش‌فرض Python حساس است.
     BRS_USER_AGENT: str = _env(
