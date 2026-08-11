@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 4
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -75,6 +75,27 @@ CREATE TABLE IF NOT EXISTS nav_history (
 );
 
 CREATE INDEX IF NOT EXISTS idx_nav_date ON nav_history(nav_date);
+
+-- Candlesticks (کندل‌های شمعی تعدیل‌شده برای تحلیل تکنیکال)
+CREATE TABLE IF NOT EXISTS candlesticks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fund_id INTEGER NOT NULL,
+    trade_date TEXT NOT NULL,
+    open_price REAL,
+    high_price REAL,
+    low_price REAL,
+    close_price REAL,
+    volume REAL,
+    value REAL,
+    candlestick_type INTEGER NOT NULL DEFAULT 3,  -- 1=لحظه‌ای، 2=روزانه تعدیل‌نشده، 3=روزانه تعدیل‌شده
+    source TEXT NOT NULL DEFAULT 'brs_candlestick',
+    created_at TEXT NOT NULL,
+    UNIQUE(fund_id, trade_date, candlestick_type),
+    FOREIGN KEY(fund_id) REFERENCES funds(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_candlesticks_fund_date ON candlesticks(fund_id, trade_date);
+CREATE INDEX IF NOT EXISTS idx_candlesticks_date ON candlesticks(trade_date);
 
 CREATE TABLE IF NOT EXISTS market_snapshot (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

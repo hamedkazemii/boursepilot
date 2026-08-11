@@ -42,14 +42,30 @@ class IndicatorSnapshot:
 class IndicatorEngine:
     """محاسبه اندیکاتور از لیست ردیف‌های history (مرتب از قدیم→جدید)."""
 
-    def compute(self, rows: Sequence[dict[str, Any]]) -> IndicatorSnapshot:
+    def compute(self, rows: Sequence[dict[str, Any]], candlesticks: Optional[Sequence[dict[str, Any]]] = None) -> IndicatorSnapshot:
+        """
+        محاسبه اندیکاتور از لیست ردیف‌های history.
+        
+        Args:
+            rows: history records (close_price, last_price, etc.)
+            candlesticks: optional candlestick data (adjusted prices for more accurate TA)
+        """
         if not rows:
             return IndicatorSnapshot()
-        closes = [_f(r.get("close_price") if r.get("close_price") is not None else r.get("last_price")) for r in rows]
-        highs = [_f(r.get("high_price")) for r in rows]
-        lows = [_f(r.get("low_price")) for r in rows]
-        vols = [_f(r.get("volume")) for r in rows]
-        dates = [str(r.get("trade_date") or "") for r in rows]
+        
+        # Use candlesticks for price data if available (adjusted for splits/dividends)
+        if candlesticks and len(candlesticks) > 0:
+            closes = [_f(c.get("close_price")) for c in candlesticks]
+            highs = [_f(c.get("high_price")) for c in candlesticks]
+            lows = [_f(c.get("low_price")) for c in candlesticks]
+            vols = [_f(c.get("volume")) for c in candlesticks]
+            dates = [str(c.get("trade_date") or "") for c in candlesticks]
+        else:
+            closes = [_f(r.get("close_price") if r.get("close_price") is not None else r.get("last_price")) for r in rows]
+            highs = [_f(r.get("high_price")) for r in rows]
+            lows = [_f(r.get("low_price")) for r in rows]
+            vols = [_f(r.get("volume")) for r in rows]
+            dates = [str(r.get("trade_date") or "") for r in rows]
 
         # drop leading Nones in close
         pairs = [(c, h, l, v, d) for c, h, l, v, d in zip(closes, highs, lows, vols, dates) if c is not None]

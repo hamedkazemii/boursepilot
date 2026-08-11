@@ -25,13 +25,13 @@ class FakeClient:
     def get_json(self, endpoint: str, params: Optional[dict[str, Any]] = None) -> Any:
         params = dict(params or {})
         self.calls.append((endpoint, params))
-        if endpoint == "AllSymbols.php":
+        if endpoint == "Tsetmc/AllSymbols.php":
             return json.loads((FIXTURES / "all_symbols_sample.json").read_text(encoding="utf-8"))
-        if endpoint == "Symbol.php":
+        if endpoint == "Tsetmc/Symbol.php":
             return json.loads((FIXTURES / "symbol_ayar.json").read_text(encoding="utf-8"))
-        if endpoint == "Nav.php":
+        if endpoint == "Tsetmc/Nav.php":
             return json.loads((FIXTURES / "nav_ayar.json").read_text(encoding="utf-8"))
-        if endpoint == "Shareholder.php":
+        if endpoint == "Tsetmc/Shareholder.php":
             return json.loads((FIXTURES / "shareholders_ayar.json").read_text(encoding="utf-8"))
         raise AssertionError(f"unexpected endpoint {endpoint}")
 
@@ -44,7 +44,7 @@ class TestBrsProvider(unittest.TestCase):
     def test_get_all_symbols(self) -> None:
         quotes = self.provider.get_all_symbols(symbol_type=1)
         self.assertGreaterEqual(len(quotes), 3)
-        self.assertEqual(self.client.calls[0][0], "AllSymbols.php")
+        self.assertEqual(self.client.calls[0][0], "Tsetmc/AllSymbols.php")
         self.assertEqual(self.client.calls[0][1].get("type"), 1)
         symbols = {q.symbol for q in quotes}
         self.assertIn("عیار", symbols)

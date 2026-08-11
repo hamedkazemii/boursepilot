@@ -19,6 +19,8 @@ from core.scoring.score_engine import ScoreEngine
 from reports.persian_ranking import PersianRankingReport
 from services.discovery.fund_catalog import FundCatalogService
 from services.providers.base import MarketDataProvider
+from services.providers.brs_provider import BrsProvider
+from services.providers.codal_provider import CodalProvider
 from services.providers.exceptions import ProviderError
 from services.providers.factory import get_market_data_provider
 from services.providers.models import NavData, SymbolQuote
@@ -107,7 +109,14 @@ class DailyAnalysisPipeline:
                 logger.exception("assess failed %s: %s", q.symbol, exc)
                 continue
             series = self.history.get_series(q.symbol, limit=200)
-            ind = self.indicator_engine.compute(series)
+            # Fetch candlesticks for adjusted price indicators (if provider supports it)
+            candlesticks = None
+            if hasattr(self.provider, "get_candlestick"):
+                try:
+                    candlesticks = self.provider.get_candlestick(q.symbol, candlestick_type=3, count=200)
+                except Exception:
+                    pass
+            ind = self.indicator_engine.compute(series, candlesticks=candlesticks)
             indicators[q.symbol] = ind
             # store indicators
             try:
@@ -136,6 +145,29 @@ class DailyAnalysisPipeline:
             )
         except Exception as exc:  # noqa: BLE001
             logger.warning("persist scores/snapshot failed: %s", exc)
+
+        # 7) KODAL sync - fetch and store disclosures for ranked funds (quota-aware)
+        try:
+            # Use BrsProvider with quota manager for CODAL
+            if isinstance(self.provider, BrsProvider):
+                codal_provider = self.provider  # Reuse the same provider with quota manager
+            else:
+                codal_provider = BrsProvider()
+            
+            # Fetch for top 20 + worst 20 funds
+            top_symbols = [a.symbol for a in ranked[:20]]
+            worst_symbols = [a.symbol for a in ranked[-20:]]
+            all_symbols = list(set(top_symbols + worst_symbols))
+            codal_stored = 0
+            for sym in all_symbols:
+                # Use quota-aware CODAL fetch
+                disclosures = codal_provider.get_codal_announcements(symbol=sym)
+                if disclosures:
+                    stored = self._store_codal_disclosures(sym, disclosures)
+                    codal_stored += stored
+            logger.info("KODAL sync done: %s disclosures stored for %s funds", codal_stored, len(all_symbols))
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("KODAL sync failed (non-blocking): %s", exc)
 
         top_n = self.smart_ranker.top(ranked, 5)
         worst_n = self.smart_ranker.worst(ranked, 5)
@@ -249,59 +281,21 @@ class DailyAnalysisPipeline:
         fund_types: dict[str, str],
         min_days: int = 45,
     ) -> int:
-        """اگر تاریخچه کم است، از روی آخرین quote مسیر مصنوعی واقع‌گرایانه seed می‌کند."""
-        seeded = 0
-        today = datetime.now().astimezone().date()
+        """بررسی وجود تاریخچه کافی - هیچ داده مصنوعی تولید نمی‌کند."""
+        warnings = 0
         for q in funds:
             if not q.symbol:
                 continue
             have = self.history.repo.history_count(q.symbol)
-            if have >= min_days:
-                continue
-            base = q.close_price or q.last_price or 1000.0
-            # deterministic pseudo walk from symbol hash
-            h = sum(ord(c) for c in q.symbol) % 97
-            price = float(base)
-            need = min_days - have
-            rows_dates = set()
-            existing = self.history.get_series(q.symbol, limit=500)
-            for r in existing:
-                rows_dates.add(str(r.get("trade_date")))
-            for i in range(need, 0, -1):
-                d = (today - timedelta(days=i)).isoformat()
-                if d in rows_dates:
-                    continue
-                # daily return -1.2%..+1.2% wave
-                drift = ((h + i * 7) % 25 - 12) / 1000.0
-                price = max(1.0, price * (1.0 + drift))
-                vol = float(q.volume or 1_000_000) * (0.7 + ((h + i) % 10) / 20.0)
-                val = price * vol
-                chg = drift * 100.0
-                fake = SymbolQuote(
-                    symbol=q.symbol,
-                    name=q.name,
-                    ins_code=q.ins_code,
-                    sector=q.sector,
-                    last_price=price,
-                    close_price=price,
-                    open_price=price * (1 - abs(drift) / 2),
-                    high=price * (1 + abs(drift)),
-                    low=price * (1 - abs(drift)),
-                    volume=vol,
-                    value=val,
-                    change_close_pct=chg,
-                    date=d,
-                    is_fund_like=True,
+            if have < min_days:
+                logger.warning(
+                    "Insufficient history for %s: %d days (need %d) - no synthetic data generated",
+                    q.symbol, have, min_days
                 )
-                self.history.repo.upsert_history_from_quote(
-                    fake,
-                    fund_type=fund_types.get(q.symbol, ""),
-                    source="seed",
-                )
-                seeded += 1
-        if seeded:
-            logger.info("seeded history points=%s", seeded)
-        return seeded
+                warnings += 1
+        if warnings:
+            logger.warning("Total funds with insufficient history: %d", warnings)
+        return 0  # No seeded points
 
     def _load_offline_quotes(self, limit: Optional[int] = None) -> list[SymbolQuote]:
         """بارگذاری آفلاین.
@@ -421,12 +415,63 @@ class DailyAnalysisPipeline:
         assert self.provider is not None
         for q in funds:
             try:
-                out[q.symbol] = self.provider.get_nav(q.symbol)
+                # Use quota-aware NAV fetch if provider is BrsProvider
+                if isinstance(self.provider, BrsProvider):
+                    out[q.symbol] = self.provider.get_nav(q.symbol)
+                else:
+                    # Fallback for other providers
+                    out[q.symbol] = self.provider.get_nav(q.symbol)
             except ProviderError:
                 continue
             except Exception:
                 continue
         return out
+
+    def _store_codal_disclosures(self, symbol: str, disclosures: list) -> int:
+        """ذخیره اطلاعیه‌های کدال در دیتابیس - سازگار با BRS CODAL response"""
+        import json
+        from datetime import datetime
+        
+        stored = 0
+        with self.history.db.transaction() as conn:
+            for d in disclosures:
+                # BRS CODAL response format: {code, title, l18, date, time, importance, url, attachment_url, ...}
+                if not isinstance(d, dict):
+                    continue
+                
+                disclosure_id = d.get("code") or f"{symbol}_{d.get('date','')}_{hash(d.get('title','')) % 1000000}"
+                title = d.get("title", "")
+                date_publish = d.get("date", "")
+                time_publish = d.get("time", "")
+                importance = d.get("importance", "normal")
+                category = d.get("category", "general")
+                url = d.get("url") or d.get("attachment_url") or ""
+                raw_json = json.dumps(d, ensure_ascii=False)
+                
+                try:
+                    conn.execute(
+                        """
+                        INSERT OR IGNORE INTO kodal_disclosures
+                        (disclosure_id, symbol, title, summary, importance, category, published_at, url, raw_json, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            disclosure_id,
+                            symbol,
+                            title,
+                            title[:200],  # summary = truncated title
+                            importance,
+                            str(category),
+                            f"{date_publish} {time_publish}" if date_publish or time_publish else "",
+                            url,
+                            raw_json,
+                            datetime.now().astimezone().isoformat(timespec="seconds"),
+                        ),
+                    )
+                    stored += 1
+                except Exception:
+                    continue
+        return stored
 
     @staticmethod
     def _validate_ranking(payload: dict[str, Any]) -> bool:

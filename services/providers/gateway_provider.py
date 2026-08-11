@@ -28,10 +28,18 @@ class GatewayProvider:
 
     name = "gateway"
 
-    def __init__(self, base_url: Optional[str] = None, timeout: float = 10.0):
+    def __init__(
+        self,
+        base_url: Optional[str] = None,
+        timeout: float = 10.0,
+        session: Optional[requests.Session] = None,
+    ):
         self.base_url = (base_url or settings.MARKET_GATEWAY_URL).rstrip("/")
         self.timeout = timeout
-        self.session = requests.Session()
+        self.session = session or requests.Session()
+        # Ensure headers dict exists (for mock sessions)
+        if not hasattr(self.session, 'headers'):
+            self.session.headers = {}
         self.session.headers.update({"User-Agent": settings.BRS_USER_AGENT})
         logger.info("GatewayProvider initialized: %s", self.base_url)
 

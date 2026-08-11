@@ -16,6 +16,7 @@ from services.sync.worker.batch_storage import BatchStorage
 from services.sync.collector import FundCollector
 from services.sync.exporter import SyncExporter
 from services.providers.factory import get_market_data_provider
+from services.providers.brs_provider import BrsProvider
 
 logger = logging.getLogger(__name__)
 
@@ -35,12 +36,15 @@ class SyncWorker:
         self._config = config
         self._batch_storage = batch_storage
         
-        # Initialize collector and exporter
+        # Initialize collector and exporter with BrsProvider (quota-aware)
         provider = get_market_data_provider()
+        if not isinstance(provider, BrsProvider):
+            # Wrap with BrsProvider if needed for quota management
+            provider = BrsProvider()
         self._collector = FundCollector(provider=provider, snapshot_dir='data/sync/snapshots')
         self._exporter = SyncExporter(default_chunk_size=config.SYNC_CHUNK_SIZE)
         
-        logger.info("SyncWorker initialized")
+        logger.info("SyncWorker initialized with BrsProvider (quota-aware)")
 
     # ------------------------------------------------------------------
     # Public

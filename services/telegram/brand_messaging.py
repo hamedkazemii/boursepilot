@@ -40,6 +40,26 @@ def _adv(a) -> dict:
     return (getattr(a, "extras", None) or {}).get("advanced_metrics") or {}
 
 
+def _get_codal_disclosures(symbol: str, limit: int = 5) -> list[dict]:
+    """دریافت آخرین اطلاعیه‌های کدال برای یک نماد"""
+    try:
+        from services.providers.codal_provider import CodalProvider
+        codal = CodalProvider()
+        disclosures = codal.get_latest(symbol, limit=limit)
+        return [
+            {
+                "title": d.title,
+                "date_publish": d.date_publish,
+                "time_publish": d.time_publish,
+                "code": d.code,
+                "link": d.link or d.link_attachment,
+            }
+            for d in disclosures
+        ]
+    except Exception:
+        return []
+
+
 def _category_from_label(label: str):
     """نگاشت برچسب فارسی به FundCategory."""
     from core.market.taxonomy import CATEGORY_CONFIGS, FundCategory
@@ -592,6 +612,15 @@ def format_fund_deepdive_brand(assessment, fund_type: str = "") -> str:
 
     details["نوع صندوق"] = config.label
     details["رتبه"] = f"{getattr(assessment, 'rank', '—')}"
+
+    # KODAL disclosures
+    codal_disclosures = _get_codal_disclosures(assessment.symbol, limit=5)
+    if codal_disclosures:
+        details["📰 آخرین اطلاعیه‌های مهم"] = ""
+        for i, d in enumerate(codal_disclosures, 1):
+            details[f"  {i}. {d['title']}"] = f"تاریخ: {d['date_publish']} {d['time_publish']}"
+    else:
+        details["📰 آخرین اطلاعیه‌های مهم"] = "اطلاعیه مهم جدیدی برای این صندوق پیدا نکردم."
 
     limitations = [
         "این تحلیل بر اساس داده‌های تاریخی و لحظه‌ای است، تضمین عملکرد آینده نیست",

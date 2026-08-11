@@ -4,7 +4,7 @@ sys.path.insert(0, "/root/projects/boursepilot")
 from unittest.mock import patch, MagicMock
 
 with patch('services.providers.factory.get_market_data_provider'), \
-     patch('core.scoring.score_engine.ScoreEngine'), \
+     patch('core.scoring.ScoreEngine'), \
      patch('services.snapshot.store.SnapshotStore'), \
      patch('services.portfolio.service.PortfolioService'), \
      patch('services.discovery.fund_catalog.FundCatalogService'), \
