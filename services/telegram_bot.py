@@ -63,20 +63,31 @@ logger = logging.getLogger(__name__)
 
 
 def _find_assessment(ranked, symbol):
-    """Exact symbol match first, then exact name, then unique partial."""
+    """Exact symbol match first, then exact name, then unique partial (word-boundary)."""
     for a in ranked:
         if a.symbol == symbol:
             return a
     for a in ranked:
         if (a.name or "").strip() == symbol:
             return a
-    partial = [a for a in ranked if symbol in a.symbol]
+    # Unique partial match on symbol (case-insensitive, whole word)
+    symbol_lower = symbol.lower()
+    partial = [a for a in ranked if symbol_lower in a.symbol.lower()]
     if len(partial) == 1:
         return partial[0]
-    partial = [a for a in ranked if symbol in (a.name or "")]
+    # Unique partial match on name (case-insensitive, word boundary to avoid substring inside word)
+    partial = [a for a in ranked if a.name and _match_whole_word(symbol_lower, a.name.lower())]
     if len(partial) == 1:
         return partial[0]
     return None
+
+
+def _match_whole_word(sub: str, text: str) -> bool:
+    """Check if sub appears as a whole word in text (not as substring of another word)."""
+    import re
+    # Use word boundaries for Persian/Latin characters
+    pattern = r'(^|[\s\-_])' + re.escape(sub) + r'([\s\-_]|$)'
+    return bool(re.search(pattern, text))
 
 
 class SandoghchiBot:
@@ -874,22 +885,9 @@ class SandoghchiBot:
         """تحلیل عمیق تک صندوق (Layer 1/2/3)."""
         symbol = symbol.strip()
         ranked = self._get_ranked()
-        # 1. Exact symbol match (highest priority)
-        for a in ranked:
-            if a.symbol == symbol:
-                return format_fund_deepdive_brand(a)
-        # 2. Exact name match
-        for a in ranked:
-            if (a.name or "").strip() == symbol:
-                return format_fund_deepdive_brand(a)
-        # 3. Partial symbol match (unique only)
-        partial = [a for a in ranked if symbol in a.symbol]
-        if len(partial) == 1:
-            return format_fund_deepdive_brand(partial[0])
-        # 4. Partial name match (unique only)
-        partial = [a for a in ranked if symbol in (a.name or "")]
-        if len(partial) == 1:
-            return format_fund_deepdive_brand(partial[0])
+        target = _find_assessment(ranked, symbol)
+        if target:
+            return format_fund_deepdive_brand(target)
         if self.provider:
             try:
                 q = self.provider.get_symbol(symbol)

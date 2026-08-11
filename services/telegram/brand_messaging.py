@@ -25,9 +25,9 @@ def _chg(a) -> float:
 
 def _nav(a) -> Optional[float]:
     """برداشت NAV امن — اول NAV صدور/ابطال، سپس قیمت لحظه‌ای (last_price)، سپس پایانی (close_price)."""
-    for attr in ("nav_issue", "nav_redeem", "issue_nav", "redeem_nav", "last_price", "close_price"):
+    for attr in ("redeem_nav", "issue_nav", "nav_redeem", "nav_issue"):
         v = getattr(a, attr, None)
-        if v:
+        if v is not None:
             return float(v)
     return None
 
@@ -554,6 +554,17 @@ def format_fund_deepdive_brand(assessment, fund_type: str = "") -> str:
         details["قیمت/NAV"] = f"{nav:,.0f} ریال"
         if assessment.premium_pct is not None:
             details["پرمیم/دیسکانت NAV"] = f"{assessment.premium_pct:+.1f}%"
+
+    # 1M/3M/1Y trend from indicator engine
+    ret_1m = ind.get("ret_1d")
+    ret_3m = ind.get("ret_5d")
+    ret_1y = ind.get("ret_20d")
+    if ret_1m is not None:
+        details["تغییر ۱ ماهه"] = f"{ret_1m:+.1f}%"
+    if ret_3m is not None:
+        details["تغییر ۳ ماهه"] = f"{ret_3m:+.1f}%"
+    if ret_1y is not None:
+        details["تغییر ۱ ساله"] = f"{ret_1y:+.1f}%"
 
     if ind.get("rsi14") is not None:
         details["RSI (۱۴ روزه)"] = f"{ind['rsi14']:.0f}"

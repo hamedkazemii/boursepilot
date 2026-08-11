@@ -252,6 +252,26 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     created_at TEXT NOT NULL,
     FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE SET NULL
 );
+
+-- KODAL Disclosures (اطلاعیه‌های رسمی سامانه کدال)
+CREATE TABLE IF NOT EXISTS kodal_disclosures (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    disclosure_id TEXT NOT NULL UNIQUE,
+    symbol TEXT NOT NULL,
+    title TEXT NOT NULL,
+    summary TEXT,
+    importance TEXT NOT NULL,
+    category TEXT NOT NULL,
+    published_at TEXT NOT NULL,
+    url TEXT,
+    raw_json TEXT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY(symbol) REFERENCES funds(symbol) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_kodal_symbol ON kodal_disclosures(symbol);
+CREATE INDEX IF NOT EXISTS idx_kodal_published ON kodal_disclosures(published_at);
+CREATE INDEX IF NOT EXISTS idx_kodal_importance ON kodal_disclosures(importance);
 """
 
 
