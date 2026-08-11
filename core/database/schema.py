@@ -207,9 +207,9 @@ CREATE TABLE IF NOT EXISTS fund_indicators (
 
 CREATE INDEX IF NOT EXISTS idx_fund_indicators_date ON fund_indicators(as_of_date);
 
--- v6.1: trend/momentum columns for deep dive
-ALTER TABLE fund_indicators ADD COLUMN trend_score REAL;
-ALTER TABLE fund_indicators ADD COLUMN momentum_score REAL;
+-- v6.1: trend/momentum columns for deep dive (conditional)
+-- SQLite doesn't support IF NOT EXISTS for columns, so we use a migration approach
+-- This will only run once due to schema_meta version tracking
 
 CREATE TABLE IF NOT EXISTS request_cache (
     cache_key TEXT PRIMARY KEY,
@@ -348,3 +348,13 @@ def apply_schema(conn: sqlite3.Connection) -> None:
             "UPDATE schema_meta SET value = ? WHERE key = 'version'",
             (str(SCHEMA_VERSION),),
         )
+    
+    # Migration: add trend_score/momentum_score columns if not exist
+    try:
+        conn.execute("ALTER TABLE fund_indicators ADD COLUMN trend_score REAL")
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+    try:
+        conn.execute("ALTER TABLE fund_indicators ADD COLUMN momentum_score REAL")
+    except sqlite3.OperationalError:
+        pass  # Column already exists
