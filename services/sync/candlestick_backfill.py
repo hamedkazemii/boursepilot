@@ -139,16 +139,16 @@ class CandlestickBackfillJob:
         fund_id = fund["fund_id"]
         
         # محاسبه تاریخ شروع: از ۲ سال پیش
-        from_date = (datetime.now().date() - timedelta(days=730)).isoformat()
-        
-        logger.info("Fetching candlesticks for %s from %s (type=3 adjusted)", symbol, from_date)
+        # برای BRS Candlestick type=3، استفاده از count برای دریافت تعداد زیادی کندل
+        # بدون پارامتر date تا تمام کندل‌ها برگردانده شوند
+        logger.info("Fetching candlesticks for %s (type=3 adjusted, count=1000)", symbol)
         
         # درخواست از BRS - type=3 برای کندل‌های روزانه تعدیل‌شده
         try:
             candlesticks = self.provider.get_candlestick(
                 symbol=symbol,
                 candlestick_type=3,  # روزانه تعدیل‌شده
-                date=from_date,
+                count=1000,  # دریافت حداکثر ۱۰۰۰ کندل
             )
         except Exception as e:
             logger.error("BRS Candlestick request failed for %s: %s", symbol, e)
