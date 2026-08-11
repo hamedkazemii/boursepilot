@@ -90,6 +90,7 @@ class BrsClient:
     def get_codal_announcements(
         self,
         symbol: Optional[str] = None,
+        l18: Optional[str] = None,  # Accept l18 from quota manager
         category: Optional[int] = None,
         audited: Optional[bool] = None,
         unaudited: Optional[bool] = None,
@@ -105,6 +106,7 @@ class BrsClient:
         
         پارامترها:
         - symbol: نماد (l18)
+        - l18: نماد (از quota manager)
         - category: دسته‌بندی (۱=صندوق، ۲=شرکت، ۳=سهامداران و...)
         - audited: حسابرسی شده (true/false)
         - unaudited: حسابرسی نشده (true/false)
@@ -114,9 +116,12 @@ class BrsClient:
         - date_end: تاریخ پایان YYYY-MM-DD
         - page: شماره صفحه
         """
+        # Support both symbol and l18 parameters
+        effective_symbol = symbol or l18
+        
         params: dict[str, Any] = {}
-        if symbol:
-            params["l18"] = symbol
+        if effective_symbol:
+            params["l18"] = effective_symbol
         if category is not None:
             params["category"] = category
         if audited is not None:
