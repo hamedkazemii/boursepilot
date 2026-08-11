@@ -124,6 +124,7 @@ def map_symbol_quote(payload: dict[str, Any]) -> SymbolQuote:
         sector_id=_int(payload.get("cs_id"), 0) or None,
         board=normalize_fa(str(payload.get("m_board") or payload.get("m") or "")) or None,
         state=normalize_fa(str(payload.get("state") or "")) or None,
+        fund_type=normalize_fa(str(payload.get("cs") or "")) or None,
         last_price=_num(payload.get("pl")),
         close_price=_num(payload.get("pc")),
         yesterday_price=_num(payload.get("py")),

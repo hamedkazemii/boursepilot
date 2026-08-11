@@ -165,10 +165,22 @@ class ReceiverProcessor:
         count = 0
         with self.db.transaction() as conn:
             for s in snapshots:
+                # Determine is_fund_like based on fund_type/sector/board
+                is_fund_like = 0
+                sector = getattr(s, "sector", "") or ""
+                board = getattr(s, "board", "") or ""
+                fund_type = getattr(s, "fund_type", "") or ""
+                name = s.name or ""
+                
+                # Check if it's a fund-like instrument
+                blob = " ".join([sector, board, name, fund_type])
+                if any(kw in blob for kw in ["صندوق", "ETF", "etf", "قابل معامله", "صندوق سرمایه‌گذاری", "صندوق کالایی"]):
+                    is_fund_like = 1
+                
                 conn.execute(
                     """
-                    INSERT INTO funds (symbol, name, isin, sector, sector_id, board, ins_code, updated_at, first_seen_at, last_seen_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO funds (symbol, name, isin, sector, sector_id, board, ins_code, updated_at, first_seen_at, last_seen_at, is_fund_like)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(symbol) DO UPDATE SET
                         name=excluded.name,
                         isin=excluded.isin,
@@ -177,7 +189,8 @@ class ReceiverProcessor:
                         board=excluded.board,
                         ins_code=excluded.ins_code,
                         updated_at=excluded.updated_at,
-                        last_seen_at=excluded.last_seen_at
+                        last_seen_at=excluded.last_seen_at,
+                        is_fund_like=excluded.is_fund_like
                     """,
                     (
                         s.symbol,
@@ -190,6 +203,7 @@ class ReceiverProcessor:
                         now,
                         now,
                         now,
+                        is_fund_like,
                     ),
                 )
                 count += 1

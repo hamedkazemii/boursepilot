@@ -104,6 +104,7 @@ class SymbolQuote:
     sector_id: Optional[int] = None
     board: Optional[str] = None
     state: Optional[str] = None
+    fund_type: Optional[str] = None  # Added for is_fund_like determination
 
     last_price: Optional[float] = None
     close_price: Optional[float] = None

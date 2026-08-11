@@ -38,6 +38,7 @@ class FundSnapshot:
     ins_code: str
     isin: Optional[str] = None
     sector: Optional[str] = None
+    fund_type: Optional[str] = None  # Added for is_fund_like determination
 
     # Market data
     last_price: Optional[float] = None

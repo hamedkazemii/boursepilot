@@ -220,6 +220,7 @@ class FundCollector:
             ins_code=getattr(quote, "ins_code", ""),
             isin=getattr(quote, "isin", None),
             sector=getattr(quote, "sector", None),
+            fund_type=getattr(quote, "fund_type", None),
             last_price=getattr(quote, "last_price", None),
             close_price=getattr(quote, "close_price", None),
             yesterday_price=getattr(quote, "yesterday_price", None),

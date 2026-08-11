@@ -106,7 +106,7 @@ class CandlestickBackfillJob:
                        MAX(h.trade_date) as newest_date
                 FROM funds f
                 LEFT JOIN history h ON h.fund_id = f.id
-                WHERE f.is_active = 1 AND f.fund_type IN ('طلا', 'کالایی', 'اهرم', 'درآمد ثابت', 'مختلط', 'املاک', 'بخشی')
+                WHERE f.is_active = 1 AND f.is_fund_like = 1
                 GROUP BY f.id, f.symbol, f.name
                 HAVING history_count < ? OR history_count = 0
                 ORDER BY history_count ASC, f.symbol
