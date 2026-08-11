@@ -1,8 +1,9 @@
 """
-History Backfill Job — پر کردن تاریخچه صندوق‌ها از BRS History.php
+History Backfill Job — پر کردن تاریخچه صندوق‌ها از BRS Candlestick.php
 
 این job روی سرور ایران (Collector) اجرا می‌شود:
-- History.php?type=2 برای دریافت تاریخچه قیمتی روزانه (open, high, low, close, volume)
+- Candlestick.php?type=3 برای دریافت تاریخچه قیمتی روزانه تعدیل‌شده (open, high, low, close, volume)
+- History.php type=1 برگرداننده آمار معاملات (buy/sell) است، نه تاریخچه قیمتی
 - برای صندوق‌هایی که history < 250 روز دارند
 - اجرای روزانه در cron شبانه
 - داده جعلی/مصنوعی تولید نمی‌کند - فقط داده واقعی BRS
@@ -25,11 +26,11 @@ logger = logging.getLogger(__name__)
 
 class HistoryBackfillJob:
     """
-    پر کردن تاریخچه صندوق‌ها از BRS History API.
+    پر کردن تاریخچه صندوق‌ها از BRS Candlestick API.
     
     استراتژی:
     1. پیدا کردن صندوق‌هایی با تاریخچه کمتر از min_days (از fund_universe)
-    2. برای هر صندوق، درخواست History.php?type=2 از تاریخ قدیمی‌تر تا امروز
+    2. برای هر صندوق، درخواست Candlestick.php?type=3 (روزانه تعدیل‌شده)
     3. Upsert به جدول history
     4. گزارش تعداد روزهای اضافه شده
     """
@@ -169,90 +170,98 @@ class HistoryBackfillJob:
         return row["id"] if row else None
     
     def _backfill_fund_history(self, fund: dict) -> int:
-        """
-        دریافت تاریخچه کامل برای یک صندوق و ذخیره در DB.
-        
-        Returns: تعداد روزهای جدید اضافه شده
-        """
+        """دریافت و ذخیره تاریخچه قیمت یک صندوق از Candlestick endpoint."""
         symbol = fund["symbol"]
-        fund_id = fund["fund_id"]
         
-        # محاسبه بازه تاریخ: از قدیمی‌ترین تاریخ موجود تا امروز
-        # اگر تاریخچه‌ای نداریم، از ۲ سال پیش درخواست می‌کنیم
-        if fund["oldest_date"]:
-            # درخواست از ۳۰ روز قبل از قدیمی‌ترین تا امروز (برای overlap و اطمینان)
-            try:
-                oldest = datetime.fromisoformat(fund["oldest_date"]).date()
-                from_date = (oldest - timedelta(days=30)).isoformat()
-            except Exception:
-                from_date = (datetime.now().date() - timedelta(days=730)).isoformat()  # 2 years
-        else:
-            from_date = (datetime.now().date() - timedelta(days=730)).isoformat()  # 2 years
+        logger.info("Backfilling candlestick history for %s", symbol)
         
-        to_date = datetime.now().date().isoformat()
+        # Use Candlestick endpoint type=3 (daily adjusted) for price history
+        # This is the correct endpoint for technical analysis price data
+        payload = self.provider.get_candlestick(symbol, candlestick_type=3, count=500)
         
-        logger.info("Fetching history for %s from %s to %s", symbol, from_date, to_date)
-        
-        # درخواست از BRS - type=2 برای تاریخچه قیمتی
-        try:
-            history_data = self.provider.get_history(
-                symbol=symbol,
-                history_type=2,  # قیمتی
-                from_date=from_date,
-                to_date=to_date,
-            )
-        except Exception as e:
-            logger.error("BRS History request failed for %s: %s", symbol, e)
-            raise
-        
-        if not history_data:
-            logger.warning("No history data returned for %s", symbol)
+        if not payload:
+            logger.warning("No candlestick data returned for %s", symbol)
             return 0
         
-        # پارس و ذخیره
         days_added = 0
+        fund_id = self._get_fund_id_from_funds_table(symbol)
+        if not fund_id:
+            logger.warning("Fund %s not found in funds table", symbol)
+            return 0
+        
+        def to_float(v):
+            if v is None or v == "":
+                return None
+            try:
+                return float(v)
+            except (ValueError, TypeError):
+                return None
+        
+        def convert_persian_date(persian_date: str) -> str:
+            """تبدیل تاریخ شمسی 1405-05-19 به میلادی."""
+            try:
+                if not persian_date or len(persian_date) != 10:
+                    return persian_date
+                parts = persian_date.split("-")
+                if len(parts) != 3:
+                    return persian_date
+                jy, jm, jd = int(parts[0]), int(parts[1]), int(parts[2])
+                # Jalali to Gregorian conversion
+                jy += 1595
+                days = -355668 + (365 * jy) + (jy // 33) * 8 + (jy % 33 + 3) // 4 + jd
+                if jm < 7:
+                    days += (jm - 1) * 31
+                else:
+                    days += (jm - 7) * 30 + 186
+                gy = 400 * (days // 146097)
+                days %= 146097
+                if days > 36524:
+                    gy += 100 * (days // 36525)
+                    days %= 36525
+                    if days >= 365:
+                        days += 1
+                gy += 4 * (days // 1461)
+                days %= 1461
+                if days > 365:
+                    gy += (days - 1) // 365
+                    days = (days - 1) % 365
+                gd = days + 1
+                if (gy % 4 == 0 and gy % 100 != 0) or (gy % 400 == 0):
+                    kab = 29
+                else:
+                    kab = 28
+                sal_a = [0, 31, kab, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+                gm = 0
+                while gm < 13 and gd > sal_a[gm]:
+                    gd -= sal_a[gm]
+                    gm += 1
+                return f"{gy:04d}-{gm:02d}-{gd:02d}"
+            except Exception:
+                return persian_date
+        
         with self.db.transaction() as conn:
-            for row in history_data:
-                if not isinstance(row, dict):
-                    continue
-                
+            for candle in payload:
                 try:
-                    # فیلدهای BRS History response
-                    trade_date = row.get("date") or row.get("trade_date")
+                    trade_date = candle.get("date")
                     if not trade_date:
                         continue
                     
-                    # نرمال‌سازی تاریخ
-                    trade_date = str(trade_date).strip()
-                    if len(trade_date) != 10:
-                        continue
+                    # Convert Persian date to Gregorian
+                    trade_date = convert_persian_date(trade_date)
                     
-                    # قیمت‌ها
-                    close_price = row.get("close_price") or row.get("close") or row.get("pl")
-                    open_price = row.get("open_price") or row.get("open") or row.get("pf")
-                    high_price = row.get("high_price") or row.get("high") or row.get("pmax")
-                    low_price = row.get("low_price") or row.get("low") or row.get("pmin")
-                    yesterday_price = row.get("yesterday_price") or row.get("py")
-                    last_price = row.get("last_price") or row.get("pl")
-                    
-                    volume = row.get("volume") or row.get("tvol") or row.get("vol")
-                    value = row.get("value") or row.get("tval")
-                    change_pct = row.get("change_pct") or row.get("pcp") or row.get("plp")
-                    trade_count = row.get("trade_count") or row.get("tno")
-                    
-                    # تبدیل به float
-                    def to_float(v):
-                        if v is None or v == "":
-                            return None
-                        try:
-                            return float(v)
-                        except (ValueError, TypeError):
-                            return None
+                    open_price = to_float(candle.get("open"))
+                    high_price = to_float(candle.get("high"))
+                    low_price = to_float(candle.get("low"))
+                    close_price = to_float(candle.get("close"))
+                    volume = to_float(candle.get("volume"))
+                    value = None
+                    trade_count = None
+                    change_pct = None
                     
                     conn.execute("""
                         INSERT INTO history (
-                            fund_id, trade_date, open_price, high_price, low_price,
-                            close_price, last_price, yesterday_price,
+                            fund_id, trade_date, open_price, high_price,
+                            low_price, close_price, last_price, yesterday_price,
                             volume, value, trade_count, change_pct, source, created_at
                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'brs', ?)
                         ON CONFLICT(fund_id, trade_date) DO UPDATE SET
@@ -269,22 +278,22 @@ class HistoryBackfillJob:
                     """, (
                         fund_id,
                         trade_date,
-                        to_float(open_price),
-                        to_float(high_price),
-                        to_float(low_price),
-                        to_float(close_price),
-                        to_float(last_price),
-                        to_float(yesterday_price),
-                        to_float(volume),
-                        to_float(value),
-                        int(trade_count) if trade_count else 0,
-                        to_float(change_pct),
+                        open_price,
+                        high_price,
+                        low_price,
+                        close_price,
+                        close_price,  # last_price = close for daily candles
+                        None,  # yesterday_price not in candlestick
+                        volume,
+                        value,
+                        trade_count,
+                        change_pct,
                         datetime.now().isoformat(),
                     ))
                     days_added += 1
                     
                 except Exception as e:
-                    logger.warning("Failed to parse history row for %s: %s", symbol, e)
+                    logger.warning("Failed to parse candlestick row for %s: %s", symbol, e)
                     continue
         
         return days_added
