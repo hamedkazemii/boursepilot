@@ -322,8 +322,7 @@ CREATE TABLE IF NOT EXISTS kodal_disclosures (
     published_at TEXT NOT NULL,
     url TEXT,
     raw_json TEXT,
-    created_at TEXT NOT NULL,
-    FOREIGN KEY(symbol) REFERENCES funds(symbol) ON DELETE CASCADE
+    created_at TEXT NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_kodal_symbol ON kodal_disclosures(symbol);
