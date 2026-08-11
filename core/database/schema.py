@@ -357,3 +357,37 @@ def apply_schema(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE fund_indicators ADD COLUMN momentum_score REAL")
     except sqlite3.OperationalError:
         pass  # Column already exists
+    
+    # Migration: recreate kodal_disclosures without FK constraint
+    # Check if FK exists
+    fks = conn.execute("PRAGMA foreign_key_list(kodal_disclosures)").fetchall()
+    if fks:
+        print("Recreating kodal_disclosures without FK...")
+        # Backup data
+        conn.execute("""
+            CREATE TABLE kodal_disclosures_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                disclosure_id TEXT NOT NULL UNIQUE,
+                symbol TEXT NOT NULL,
+                title TEXT NOT NULL,
+                summary TEXT,
+                importance TEXT NOT NULL,
+                category TEXT NOT NULL,
+                published_at TEXT NOT NULL,
+                url TEXT,
+                raw_json TEXT,
+                created_at TEXT NOT NULL
+            )
+        """)
+        conn.execute("""
+            INSERT INTO kodal_disclosures_new
+            SELECT id, disclosure_id, symbol, title, summary, importance, category, 
+                   published_at, url, raw_json, created_at
+            FROM kodal_disclosures
+        """)
+        conn.execute("DROP TABLE kodal_disclosures")
+        conn.execute("ALTER TABLE kodal_disclosures_new RENAME TO kodal_disclosures")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_kodal_symbol ON kodal_disclosures(symbol)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_kodal_published ON kodal_disclosures(published_at)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_kodal_importance ON kodal_disclosures(importance)")
+        print("kodal_disclosures recreated without FK")
