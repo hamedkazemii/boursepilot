@@ -140,10 +140,31 @@ class CandlestickBackfillJob:
     
     def _get_fund_id_from_funds_table(self, symbol: str) -> Optional[int]:
         """دریافت fund_id از جدول قدیمی funds برای نماد داده شده."""
+        # First try exact symbol match
         with self.db.transaction() as conn:
             row = conn.execute(
                 "SELECT id FROM funds WHERE symbol = ? AND is_active = 1",
                 (symbol,)
+            ).fetchone()
+        if row:
+            return row["id"]
+        
+        # If not found, try to find by ISIN from fund_universe
+        with self.db.transaction() as conn:
+            # Get ISIN from fund_universe
+            row = conn.execute(
+                "SELECT isin FROM fund_universe WHERE symbol = ? AND is_active = 1",
+                (symbol,)
+            ).fetchone()
+        if not row or not row["isin"]:
+            return None
+        
+        isin = row["isin"]
+        # Find matching fund in old funds table by ISIN
+        with self.db.transaction() as conn:
+            row = conn.execute(
+                "SELECT id FROM funds WHERE isin = ? AND is_active = 1",
+                (isin,)
             ).fetchone()
         return row["id"] if row else None
     
