@@ -98,6 +98,7 @@ class BrsClient:
         date_start: Optional[str] = None,
         date_end: Optional[str] = None,
         page: Optional[int] = None,
+        key: Optional[str] = None,  # Accept but ignore - quota manager adds it
     ) -> Any:
         """
         دریافت اطلاعیه‌های کدال از endpoint Announcement.php
