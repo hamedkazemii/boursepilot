@@ -19,6 +19,7 @@ from typing import Optional
 
 from services.sync.models import FundSnapshot
 from services.sync.providers import MarketSnapshotProvider
+from services.discovery.universe_store import get_universe_store, get_valid_fund_symbols
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +99,7 @@ class FundCollector:
         """
         Collect snapshots for all fund-like symbols.
 
-        Uses MarketSnapshotProvider.get_fund_symbols() to filter,
+        Uses fund_universe (Source of Truth: BRS AllSymbols cs_id=68),
         then collects each fund individually.
 
         Args:
@@ -108,23 +109,26 @@ class FundCollector:
         Returns:
             List of FundSnapshot objects.
         """
-        try:
-            fund_quotes = self.provider.get_fund_symbols()
-        except Exception as exc:  # noqa: BLE001
-            logger.error("Failed to get fund symbols: %s", exc)
-            return []
-
+        # Get valid fund symbols from central universe store
+        fund_symbols = get_valid_fund_symbols()
+        
         if limit is not None:
-            fund_quotes = fund_quotes[:limit]
+            fund_symbols = fund_symbols[:limit]
 
         snapshots: list[FundSnapshot] = []
-        for quote in fund_quotes:
+        for symbol in fund_symbols:
+            try:
+                quote = self.provider.get_symbol(symbol)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Failed to get quote for %s: %s", symbol, exc)
+                continue
+
             nav = None
             if include_nav:
                 try:
-                    nav = self.provider.get_nav(quote.symbol)
+                    nav = self.provider.get_nav(symbol)
                 except Exception as exc:  # noqa: BLE001
-                    logger.warning("Failed to get NAV for %s: %s", quote.symbol, exc)
+                    logger.warning("Failed to get NAV for %s: %s", symbol, exc)
 
             snapshot = self._build_snapshot(quote, nav)
             self._store_snapshot(snapshot)

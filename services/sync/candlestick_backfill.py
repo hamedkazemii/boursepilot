@@ -16,6 +16,7 @@ from typing import Optional
 
 from config import settings
 from core.database.connection import get_database
+from services.discovery.universe_store import get_universe_store
 from services.providers.brs_provider import BrsProvider
 
 logger = logging.getLogger(__name__)
@@ -26,7 +27,7 @@ class CandlestickBackfillJob:
     پر کردن تاریخچه صندوق‌ها از BRS Candlestick API (type=3 = adjusted daily).
     
     استراتژی:
-    1. پیدا کردن صندوق‌های فعال با تاریخچه کمتر از min_days
+    1. پیدا کردن صندوق‌های فعال با تاریخچه کمتر از min_days (از fund_universe)
     2. برای هر صندوق، درخواست Candlestick.php?type=3 (کندل‌های تعدیل‌شده)
     3. Upsert به جدول history (برای سازگاری با موتور اندیکاتورها)
     4. همچنین ذخیره در جدول candlesticks (جدول جدید برای داده‌های تعدیل‌شده)
@@ -44,6 +45,7 @@ class CandlestickBackfillJob:
         self.min_history_days = min_history_days
         self.max_funds_per_run = max_funds_per_run
         self.db = get_database(db_path)
+        self.universe_store = get_universe_store()
     
     def run(self) -> dict:
         """اجرای job و بازگرداندن آمار."""
@@ -57,7 +59,7 @@ class CandlestickBackfillJob:
             "quota_report": {},
         }
         
-        # 1. پیدا کردن صندوق‌های کم‌تاریخچه (فقط صندوق‌های fund_like)
+        # 1. پیدا کردن صندوق‌های کم‌تاریخچه (از fund_universe)
         funds_needing_history = self._find_funds_needing_history()
         stats["funds_checked"] = len(funds_needing_history)
         
@@ -97,37 +99,53 @@ class CandlestickBackfillJob:
         return stats
     
     def _find_funds_needing_history(self) -> list[dict]:
-        """پیدا کردن صندوق‌های fund_like که تاریخچه کمتر از min_history_days روز دارند."""
-        with self.db.transaction() as conn:
-            rows = conn.execute("""
-                SELECT f.id, f.symbol, f.name,
-                       COUNT(h.id) as history_count,
-                       MIN(h.trade_date) as oldest_date,
-                       MAX(h.trade_date) as newest_date
-                FROM funds f
-                LEFT JOIN history h ON h.fund_id = f.id
-                WHERE f.is_active = 1 AND f.is_fund_like = 1
-                GROUP BY f.id, f.symbol, f.name
-                HAVING history_count < ? OR history_count = 0
-                ORDER BY history_count ASC, f.symbol
-            """, (self.min_history_days,)).fetchall()
+        """پیدا کردن صندوق‌هایی که تاریخچه کمتر از min_history_days روز دارند."""
+        # دریافت تمام صندوق‌های معتبر از fund_universe
+        universe = self.universe_store.load_universe(active_only=True)
+        
+        result = []
+        for fund in universe:
+            fund_id = self._get_fund_id_from_funds_table(fund.symbol)
+            if not fund_id:
+                # صندوق در جدول قدیمی funds وجود ندارد، skip
+                logger.debug("Fund %s not in old funds table, skipping", fund.symbol)
+                continue
             
-            result = []
-            for row in rows:
-                # Skip derivative products (symbols ending with digit like 2, 4, etc.)
-                symbol = row["symbol"]
-                if symbol[-1].isdigit() and len(symbol) > 1 and symbol[-2] not in '0123456789':
-                    # This is likely a derivative (e.g., "آتیه ملت4")
-                    continue
+            with self.db.transaction() as conn:
+                row = conn.execute("""
+                    SELECT COUNT(h.id) as history_count,
+                           MIN(h.trade_date) as oldest_date,
+                           MAX(h.trade_date) as newest_date
+                    FROM history h
+                    WHERE h.fund_id = ?
+                """, (fund_id,)).fetchone()
+            
+            history_count = row["history_count"] if row else 0
+            oldest_date = row["oldest_date"] if row else None
+            newest_date = row["newest_date"] if row else None
+            
+            if history_count < self.min_history_days:
                 result.append({
-                    "fund_id": row["id"],
-                    "symbol": row["symbol"],
-                    "name": row["name"],
-                    "history_count": row["history_count"],
-                    "oldest_date": row["oldest_date"],
-                    "newest_date": row["newest_date"],
+                    "fund_id": fund_id,
+                    "symbol": fund.symbol,
+                    "name": fund.name,
+                    "history_count": history_count,
+                    "oldest_date": oldest_date,
+                    "newest_date": newest_date,
                 })
-            return result
+        
+        # Sort by history_count ascending (least history first)
+        result.sort(key=lambda x: x["history_count"])
+        return result
+    
+    def _get_fund_id_from_funds_table(self, symbol: str) -> Optional[int]:
+        """دریافت fund_id از جدول قدیمی funds برای نماد داده شده."""
+        with self.db.transaction() as conn:
+            row = conn.execute(
+                "SELECT id FROM funds WHERE symbol = ? AND is_active = 1",
+                (symbol,)
+            ).fetchone()
+        return row["id"] if row else None
     
     def _backfill_fund_candlesticks(self, fund: dict) -> int:
         """
