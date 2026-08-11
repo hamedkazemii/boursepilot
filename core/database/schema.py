@@ -207,6 +207,10 @@ CREATE TABLE IF NOT EXISTS fund_indicators (
 
 CREATE INDEX IF NOT EXISTS idx_fund_indicators_date ON fund_indicators(as_of_date);
 
+-- v6.1: trend/momentum columns for deep dive
+ALTER TABLE fund_indicators ADD COLUMN trend_score REAL;
+ALTER TABLE fund_indicators ADD COLUMN momentum_score REAL;
+
 CREATE TABLE IF NOT EXISTS request_cache (
     cache_key TEXT PRIMARY KEY,
     endpoint TEXT NOT NULL,
