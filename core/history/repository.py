@@ -466,6 +466,41 @@ class HistoryRepository:
             )
             return int(cur.rowcount or 0)
 
+    def get_latest_market_snapshot(self) -> Optional[dict[str, Any]]:
+        """آخرین market_snapshot را برمی‌گرداند"""
+        row = self.db.fetchone(
+            """SELECT * FROM market_snapshot
+               ORDER BY snapshot_at DESC LIMIT 1"""
+        )
+        if row:
+            result = dict(row)
+            if result.get("payload_json"):
+                import json
+                result["payload"] = json.loads(result["payload_json"])
+            return result
+        return None
+
+    def get_latest_daily_scores(self, limit: int = 100) -> list[dict[str, Any]]:
+        """آخرین daily_scores را برمی‌گرداند"""
+        # آخرین تاریخ موجود
+        date_row = self.db.fetchone(
+            "SELECT MAX(score_date) as max_date FROM daily_scores"
+        )
+        if not date_row or not date_row["max_date"]:
+            return []
+
+        latest_date = date_row["max_date"]
+        rows = self.db.fetchall(
+            """SELECT ds.*, f.symbol, f.name, f.sector
+               FROM daily_scores ds
+               JOIN funds f ON f.id = ds.fund_id
+               WHERE ds.score_date = ?
+               ORDER BY ds.rank ASC
+               LIMIT ?""",
+            (latest_date, limit),
+        )
+        return [dict(r) for r in rows]
+
     def bulk_upsert_quotes(
         self,
         quotes: Iterable[SymbolQuote],
