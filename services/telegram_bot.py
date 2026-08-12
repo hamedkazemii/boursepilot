@@ -898,6 +898,30 @@ class SandoghchiBot:
     def _cmd_fund(self, symbol: str) -> str:
         """تحلیل عمیق تک صندوق (Layer 1/2/3)."""
         symbol = symbol.strip()
+        
+        # Try Phase 1 pipeline first for comprehensive analysis
+        try:
+            from core.pipeline.phase1_pipeline import Phase1Pipeline, format_phase1_telegram
+            from services.providers.factory import get_market_data_provider
+            from core.database.connection import get_database
+            from core.history.repository import HistoryRepository
+            from services.providers.brs_provider import BrsProvider
+            
+            provider = get_market_data_provider()
+            if not isinstance(provider, BrsProvider):
+                raise TypeError("Provider must be BrsProvider")
+            repository = HistoryRepository(get_database())
+            
+            pipeline = Phase1Pipeline(provider=provider, repository=repository)
+            result = pipeline.analyze_fund(symbol)
+            
+            return format_phase1_telegram(result)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception(f"Phase1 pipeline failed for {symbol}: {exc}")
+            # Fallback to existing deepdive
+            pass
+        
+        # Fallback to existing deepdive
         ranked = self._get_ranked()
         target = _find_assessment(ranked, symbol)
         if target:
@@ -908,7 +932,7 @@ class SandoghchiBot:
                 nav = None
                 try:
                     nav = self.provider.get_nav(symbol)
-                except ProviderError:
+                except Exception:
                     pass
                 assessment = self.engine.assess(q, nav=nav)
                 return format_fund_deepdive_brand(assessment)
