@@ -16,7 +16,7 @@ from enum import Enum
 from typing import Any, Optional
 
 from core.history.repository import HistoryRepository
-from services.providers.brs_provider import BrsProvider
+from services.providers.base import MarketDataProvider
 from services.providers.models import SymbolQuote
 
 logger = logging.getLogger(__name__)
@@ -161,7 +161,7 @@ class MarketRegimeEngine:
 
     def __init__(
         self,
-        provider: Optional[BrsProvider] = None,
+        provider: Optional[MarketDataProvider] = None,
         repository: Optional[HistoryRepository] = None,
     ):
         self.provider = provider

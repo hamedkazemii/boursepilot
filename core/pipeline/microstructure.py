@@ -17,7 +17,7 @@ from enum import Enum
 from typing import Any, Optional
 
 from services.providers.models import OrderBookSnapshot, OrderBookLevel, MoneyFlowSnapshot, SymbolQuote
-from services.providers.brs_provider import BrsProvider
+from services.providers.base import MarketDataProvider
 from core.history.repository import HistoryRepository
 
 logger = logging.getLogger(__name__)
@@ -178,7 +178,7 @@ class TabloKhaniEngine:
 
     def __init__(
         self,
-        provider: Optional[BrsProvider] = None,
+        provider: Optional[MarketDataProvider] = None,
         repository: Optional[HistoryRepository] = None,
         data_quality_gate: Optional[Any] = None,
     ):

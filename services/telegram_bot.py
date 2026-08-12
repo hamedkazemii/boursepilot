@@ -905,11 +905,8 @@ class SandoghchiBot:
             from services.providers.factory import get_market_data_provider
             from core.database.connection import get_database
             from core.history.repository import HistoryRepository
-            from services.providers.brs_provider import BrsProvider
             
             provider = get_market_data_provider()
-            if not isinstance(provider, BrsProvider):
-                raise TypeError("Provider must be BrsProvider")
             repository = HistoryRepository(get_database())
             
             pipeline = Phase2Pipeline(provider=provider, repository=repository)
@@ -927,11 +924,8 @@ class SandoghchiBot:
             from services.providers.factory import get_market_data_provider
             from core.database.connection import get_database
             from core.history.repository import HistoryRepository
-            from services.providers.brs_provider import BrsProvider
             
             provider = get_market_data_provider()
-            if not isinstance(provider, BrsProvider):
-                raise TypeError("Provider must be BrsProvider")
             repository = HistoryRepository(get_database())
             
             pipeline = Phase1Pipeline(provider=provider, repository=repository)

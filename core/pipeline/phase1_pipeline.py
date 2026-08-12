@@ -35,7 +35,7 @@ from core.pipeline.market_regime import MarketRegimeEngine, MarketRegimeResult, 
 from core.pipeline.fund_identity import FundIdentityManager, FundIdentity
 from core.pipeline.microstructure import TabloKhaniEngine, TabloKhaniReport
 from core.history.repository import HistoryRepository
-from services.providers.brs_provider import BrsProvider
+from services.providers.base import MarketDataProvider
 
 logger = logging.getLogger(__name__)
 
@@ -220,7 +220,7 @@ class Phase1Pipeline:
 
     def __init__(
         self,
-        provider: Optional[BrsProvider] = None,
+        provider: Optional[MarketDataProvider] = None,
         repository: Optional[HistoryRepository] = None,
     ) -> None:
         self.provider = provider

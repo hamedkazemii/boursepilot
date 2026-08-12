@@ -16,7 +16,7 @@ from typing import Any, Optional
 from core.pipeline.fund_identity import FundIdentity, FundType
 from core.pipeline.data_quality import DataQualityGate
 from core.history.repository import HistoryRepository
-from services.providers.brs_provider import BrsProvider
+from services.providers.base import MarketDataProvider
 from services.providers.models import NavData, SymbolQuote
 
 logger = logging.getLogger(__name__)
@@ -131,7 +131,7 @@ class NAVEngine:
 
     def __init__(
         self,
-        provider: Optional[BrsProvider] = None,
+        provider: Optional[MarketDataProvider] = None,
         repository: Optional[HistoryRepository] = None,
         data_quality_gate: Optional[DataQualityGate] = None,
         fund_identity_manager: Optional[Any] = None,
