@@ -307,7 +307,7 @@ class Phase1Pipeline:
             result.overall_data_quality = dq_report.overall_quality.value if dq_report.overall_quality else "unknown"
             logger.info(
                 f"[{rid}] DataQuality: quality={result.overall_data_quality}, "
-                f"conf={dq_report.overall_confidence:.2f}"
+                f"conf={dq_report.overall_confidence.value}"
             )
         except Exception as e:
             logger.exception(f"[{rid}] DataQualityGate failed: {e}")
@@ -552,7 +552,7 @@ def format_phase1_telegram(result: Phase1AnalysisResult) -> str:
         }.get(dq.overall_quality.value if dq.overall_quality else "unknown", "نامشخص")
         lines.append("🛡️ کیفیت داده")
         lines.append(f"  • کیفیت کلی: {dq_label}")
-        lines.append(f"  • اطمینان: {dq.overall_confidence:.0%}")
+        lines.append(f"  • اطمینان: {dq.overall_confidence.value}")
         metrics_with_value = [m for m, v in dq.metrics.items() if v.value is not None]
         if metrics_with_value:
             lines.append(f"  • متریک‌های بررسی‌شده: {len(metrics_with_value)}")
