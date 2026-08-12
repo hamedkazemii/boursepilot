@@ -896,10 +896,32 @@ class SandoghchiBot:
         return "\n".join(lines)
 
     def _cmd_fund(self, symbol: str) -> str:
-        """تحلیل عمیق تک صندوق (Layer 1/2/3)."""
+        """تحلیل عمیق تک صندوق (Phase 1 + 2)."""
         symbol = symbol.strip()
         
-        # Try Phase 1 pipeline first for comprehensive analysis
+        # Try Phase 2 pipeline first for comprehensive analysis
+        try:
+            from core.pipeline.phase2_pipeline import Phase2Pipeline, format_phase2_telegram
+            from services.providers.factory import get_market_data_provider
+            from core.database.connection import get_database
+            from core.history.repository import HistoryRepository
+            from services.providers.brs_provider import BrsProvider
+            
+            provider = get_market_data_provider()
+            if not isinstance(provider, BrsProvider):
+                raise TypeError("Provider must be BrsProvider")
+            repository = HistoryRepository(get_database())
+            
+            pipeline = Phase2Pipeline(provider=provider, repository=repository)
+            result = pipeline.analyze_fund(symbol)
+            
+            return format_phase2_telegram(result)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception(f"Phase2 pipeline failed for {symbol}: {exc}")
+            # Fallback to Phase 1
+            pass
+        
+        # Fallback to Phase 1 pipeline
         try:
             from core.pipeline.phase1_pipeline import Phase1Pipeline, format_phase1_telegram
             from services.providers.factory import get_market_data_provider
