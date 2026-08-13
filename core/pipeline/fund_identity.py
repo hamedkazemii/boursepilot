@@ -21,6 +21,19 @@ from services.providers.models import SymbolQuote
 logger = logging.getLogger(__name__)
 
 
+def _row_get(row: Any, key: str, default: str = "") -> str:
+    """Safely read a column from a DB row that may be tuple, dict, or sqlite3.Row."""
+    if row is None:
+        return default
+    if isinstance(row, dict):
+        return row.get(key, default) or default
+    # sqlite3.Row supports __getitem__ and keys()
+    try:
+        return row[key] or default
+    except (KeyError, IndexError):
+        return default
+
+
 class FundType(str, Enum):
     """نوع صندوق"""
     EQUITY = "equity"                # سهامی
@@ -383,20 +396,53 @@ class FundIdentityManager:
         if not row:
             return identity  # UNKNOWN
 
-        identity.name = row["name"] or ""
-        identity.is_active = bool(row["is_active"]) if "is_active" in row.keys() else True
+        identity.name = _row_get(row, "name")
+        identity.is_active = bool(_row_get(row, "is_active", "1")) if "is_active" in row.keys() else True
         identity.universe_version = "fund_universe"
 
-        # تشخیص fund_type
-        text = " ".join(str(x or "") for x in (
-            row["symbol"],
-            row.get("name", ""),
-            row.get("cs", "") if "cs" in row.keys() else row.get("sector", ""),
-            row.get("board", ""),
-        ))
-        identity.fund_type = self._classify_from_text(text)
-
-        # پرچم‌ها
+        # Use DB fund_type directly if available - preserves explicit
+        # classification from data source rather than re-classifying from text
+        db_fund_type = _row_get(row, "fund_type")
+        if db_fund_type and db_fund_type != FundType.UNKNOWN.value:
+            # Handle Persian fund type names stored in DB
+            # (the DB stores Persian names like "طلا", "اهرم" but FundType uses English)
+            persian_map = {
+                "طلا": "gold",
+                "اهرم": "leveraged", 
+                "اهرمی": "leveraged",
+                "سهامی": "equity",
+                "سهمی": "equity",
+                "درآمد ثابت": "fixed_income",
+                "مثبت": "fixed_income",
+                "مخلوط": "mixed",
+                "شاخص": "index",
+                "شاخصی": "index",
+                "مشتقه": "derivative",
+                "اختیار": "derivative",
+                "غيره": "other",
+                "unknown": "unknown",
+            }
+            persian_key = persian_map.get(db_fund_type, db_fund_type)
+            try:
+                identity.fund_type = FundType(persian_key)
+            except ValueError:
+                # If not in map, fall back to text classification
+                text = " ".join(str(x or "") for x in (
+                    _row_get(row, "symbol"),
+                    _row_get(row, "name"),
+                    _row_get(row, "cs") if "cs" in row.keys() else _row_get(row, "sector"),
+                    _row_get(row, "board"),
+                ))
+                identity.fund_type = self._classify_from_text(text)
+        else:
+            # Fall back to text classification only if DB does not have explicit fund_type
+            text = " ".join(str(x or "") for x in (
+                _row_get(row, "symbol"),
+                _row_get(row, "name"),
+                _row_get(row, "cs") if "cs" in row.keys() else _row_get(row, "sector"),
+                _row_get(row, "board"),
+            ))
+            identity.fund_type = self._classify_from_text(text)        # پرچم‌ها
         identity.is_leveraged = identity.fund_type == FundType.LEVERAGED
         identity.is_derivative = identity.fund_type == FundType.DERIVATIVE
         identity.is_brand_like = False
