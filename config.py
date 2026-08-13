@@ -26,6 +26,13 @@ def _env_float(name: str, default: float) -> float:
     return float(raw)
 
 
+def _env_bool(key: str, default: bool = False) -> bool:
+    value = os.getenv(key)
+    if value is None:
+        return default
+    return value.lower() in ("1", "true", "yes", "on")
+
+
 def _env_int(name: str, default: int) -> int:
     raw = _env(name, "")
     if not raw:
@@ -44,12 +51,18 @@ class Settings:
     TELEGRAM_BOT_TOKEN: str = _env("TELEGRAM_BOT_TOKEN", "")
     TELEGRAM_CHAT_ID: str = _env("TELEGRAM_CHAT_ID", "")
 
-    # --- BRS Market Data API ---
-    # Base رسمی مستندات: https://Api.BrsApi.ir/Tsetmc
+    # --- Market Gateway (internal Iran server) ---
+    # If set, all market data flows through this Gateway instead of BRS directly
+    MARKET_GATEWAY_URL: str = _env("MARKET_GATEWAY_URL", "")
+    MARKET_GATEWAY_TOKEN: str = _env("MARKET_GATEWAY_TOKEN", "")
+    GATEWAY_TIMEOUT_SECONDS: float = _env_float("GATEWAY_TIMEOUT_SECONDS", 300.0)
+
+    # --- BRS Market Data API (fallback / direct when no Gateway) ---
+    # Base رسمی مستندات: https://Api.BrsApi.ir
     BRS_API_KEY: str = _env("BRS_API_KEY", "")
     BRS_BASE_URL: str = _env(
         "BRS_BASE_URL",
-        "https://Api.BrsApi.ir/Tsetmc",
+        "https://Api.BrsApi.ir",
     )
     # فایروال BrsApi به User-Agent پیش‌فرض Python حساس است.
     BRS_USER_AGENT: str = _env(
@@ -66,6 +79,14 @@ class Settings:
     BRS_ALL_SYMBOLS_TYPE: int = _env_int("BRS_ALL_SYMBOLS_TYPE", 1)
 
     # provider فعال برای لایه داده بازار
+
+    
+    # Sync Configuration
+    SYNC_ENABLED: bool = _env_bool("SYNC_ENABLED", False)
+    SYNC_TARGET_URL: str = _env("SYNC_TARGET_URL", "")
+    SYNC_API_KEY: str = _env("SYNC_API_KEY", "")
+    SYNC_RECEIVER_ENABLED: bool = _env_bool("SYNC_RECEIVER_ENABLED", False)
+
     MARKET_DATA_PROVIDER: str = _env("MARKET_DATA_PROVIDER", "brs")
 
     # --- Snapshot / ranking ---
@@ -74,6 +95,19 @@ class Settings:
     # برای سرعت توسعه پیش‌فرض false؛ در پروداکشن true کنید
     FETCH_NAV_IN_DAILY_RANK: bool = _env("FETCH_NAV_IN_DAILY_RANK", "false").lower() in {"1", "true", "yes", "on"}
     NAV_FETCH_WORKERS: int = _env_int("NAV_FETCH_WORKERS", 4)
+
+    # --- History Engine / SQLite ---
+    DATABASE_PATH: str = _env("DATABASE_PATH", "data/database.db")
+    HISTORY_CACHE_TTL_SECONDS: int = _env_int("HISTORY_CACHE_TTL_SECONDS", 300)
+    # گزارش تلگرام: smart = خلاصه + پیام‌های جدا
+    TELEGRAM_SMART_REPORT: bool = _env("TELEGRAM_SMART_REPORT", "true").lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    TELEGRAM_TOP_N: int = _env_int("TELEGRAM_TOP_N", 5)
+    TELEGRAM_WORST_N: int = _env_int("TELEGRAM_WORST_N", 5)
 
 
 settings = Settings()

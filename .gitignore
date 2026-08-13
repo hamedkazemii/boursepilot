@@ -2,3 +2,79 @@
 __pycache__/
 .env
 data/snapshots_test/
+data/database.db
+data/database.db-*
+*.db-journal
+.pytest_cache/
+
+# Runtime generated data
+data/snapshots/
+reports/
+
+# Local logs
+*.log
+
+# Agent workspace
+.agent/
+
+# Environment backups
+.env.*
+!.env.example
+
+# Gateway backups
+market_gateway_api*.backup*
+market_gateway_api*.bak
+market_gateway_api*.before*
+
+# Temporary python backups
+*.bak
+*.backup
+*.before*
+
+# Runtime sync generated data
+data/sync/live/
+data/sync/chunks/
+data/sync/deltas/
+
+# Receiver runtime data
+data/receiver/
+
+# Python cache
+*.pyc
+
+
+# Agent runtime
+.agent/
+
+# Python cache
+*.pyc
+__pycache__/
+
+# Backup files
+*.backup.*
+*.before-*
+*.pagination-backup.*
+
+
+# local runtime artifacts
+*.bak
+*.backup*
+*.final*
+*.stable*
+*.pyc
+__pycache__/
+.pytest_cache/
+
+# agent generated artifacts
+agentshire*
+12.0.2
+tsc
+echo
+
+# runtime data
+data/history/*.json
+data/receiver/
+
+# environment backups
+.env.*backup*
+

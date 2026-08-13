@@ -16,9 +16,10 @@ def score_momentum(quote: SymbolQuote, cfg: dict[str, Any]) -> FactorScore:
     mild_down = float(m.get("mild_down", -0.5))
     strong_down = float(m.get("strong_down", -2.0))
 
-    chg = quote.change_close_pct
+    # Use live change (change_last_pct) as primary for real-time analysis
+    chg = quote.change_last_pct
     if chg is None:
-        chg = quote.change_last_pct
+        chg = quote.change_close_pct
     if chg is None:
         return FactorScore(
             key="momentum",

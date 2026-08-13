@@ -62,14 +62,23 @@ class TestScoreEngine(unittest.TestCase):
         self.assertIsNotNone(a.premium_pct)
 
     def test_pipeline_offline(self) -> None:
-        store = SnapshotStore(base_dir=Path("data/snapshots_test"))
-        pipe = DailyRankPipeline(provider=self.provider, store=store, fetch_nav=True)
-        result = pipe.run()
-        self.assertGreaterEqual(result["count"], 1)
-        self.assertTrue(Path(result["rank_path"]).exists())
-        self.assertTrue(Path(result["text_path"]).exists())
-        # Persian text
-        self.assertIn("رنکینگ", result["text"])
+        import os
+        import tempfile
+        # Use a temp database for this test
+        with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
+            temp_db = f.name
+        os.environ['DATABASE_PATH'] = temp_db
+        try:
+            store = SnapshotStore(base_dir=Path("data/snapshots_test"))
+            pipe = DailyRankPipeline(provider=self.provider, store=store, fetch_nav=True)
+            result = pipe.run()
+            self.assertGreaterEqual(result["count"], 1)
+            self.assertTrue(Path(result["rank_path"]).exists())
+            self.assertTrue(Path(result["text_path"]).exists())
+            # Persian text
+            self.assertIn("رنکینگ", result["text"])
+        finally:
+            os.unlink(temp_db)
 
     def test_preopen(self) -> None:
         analyzer = PreopenAnalyzer()
