@@ -49,6 +49,10 @@ class SyncSender:
         Returns:
             dict with 'manifest' and 'chunks' results.
         """
+        logger.info(
+            "SyncSender: building batch %s (source: %s, records: %d)",
+            batch.batch_id, batch.source, len(batch.history_records)
+        )
         total_chunks = len(batch._chunks)
         self._state.save_batch_state(
             batch.batch_id,

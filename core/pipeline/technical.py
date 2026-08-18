@@ -146,6 +146,8 @@ class TrendModule:
         fund_type: FundType,
         identity: FundIdentity,
         request_id: str,
+        latest_snapshot: Optional[dict] = None,
+        freshness_data: Optional[dict] = None,
     ) -> TechnicalModuleResult:
         result = TechnicalModuleResult(module_name="trend")
         
@@ -268,6 +270,8 @@ class MomentumModule:
         fund_type: FundType,
         identity: FundIdentity,
         request_id: str,
+        latest_snapshot: Optional[dict] = None,
+        freshness_data: Optional[dict] = None,
     ) -> TechnicalModuleResult:
         result = TechnicalModuleResult(module_name="momentum")
 
@@ -404,6 +408,8 @@ class VolatilityModule:
         fund_type: FundType,
         identity: FundIdentity,
         request_id: str,
+        latest_snapshot: Optional[dict] = None,
+        freshness_data: Optional[dict] = None,
     ) -> TechnicalModuleResult:
         result = TechnicalModuleResult(module_name="volatility")
 
@@ -534,6 +540,8 @@ class VolumeModule:
         fund_type: FundType,
         identity: FundIdentity,
         request_id: str,
+        latest_snapshot: Optional[dict] = None,
+        freshness_data: Optional[dict] = None,
     ) -> TechnicalModuleResult:
         result = TechnicalModuleResult(module_name="volume")
 
@@ -618,6 +626,8 @@ class PriceStructureModule:
         fund_type: FundType = FundType.UNKNOWN,
         identity: Optional[FundIdentity] = None,
         request_id: str = "",
+        latest_snapshot: Optional[dict] = None,
+        freshness_data: Optional[dict] = None,
     ) -> TechnicalModuleResult:
         result = TechnicalModuleResult(module_name="price_structure")
 
@@ -754,6 +764,8 @@ class TechnicalEngine:
         *,
         request_id: Optional[str] = None,
         force_refresh: bool = False,
+        latest_snapshot: Optional[dict] = None,
+        freshness_data: Optional[dict] = None,
     ) -> dict[str, Any]:
         """
         اجرای تحلیل تکنیکال کامل.

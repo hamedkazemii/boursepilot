@@ -85,7 +85,50 @@ class SyncWorker:
         )
 
         # 5. Send the batch
-        result = self._sender.send_batch(batch)
+        result = self._sender.send_batch(batch)        # ---------------------------------------------------
+        # NAV HYBRID: SELECTIVE FETCH (POST-MARKET)
+        # ---------------------------------------------------
+        logger.info("Running selective NAV collection...")
+        nav_symbols = [s.symbol for s in snapshots if hasattr(s, 'symbol')]
+        if nav_symbols:
+            nav_snapshots = self._collector.collect_nav_subset(
+                symbols=nav_symbols,
+                max_funds=50
+            )
+            if nav_snapshots:
+                logger.info("Fetched NAV for %d funds", len(nav_snapshots))
+                # Export NAV snapshots through the same official path
+                nav_batch = self._exporter.export_batch(nav_snapshots)
+                logger.info("Created NAV batch %s with %d snapshots",
+                    nav_batch.batch_id, len(nav_batch.snapshots))
+                # Store NAV batch payload and chunks
+                self._batch_storage.save_batch_payload(
+                    nav_batch.batch_id,
+                    nav_batch._get_compressed_payload()
+                )
+                for chunk in nav_batch._chunks:
+                    self._batch_storage.save_chunk(
+                        nav_batch.batch_id,
+                        chunk.chunk_index,
+                        chunk.data,
+                        chunk.checksum
+                    )
+                # Store batch state as pending
+                self._state.save_batch_state(
+                    nav_batch.batch_id,
+                    "pending",
+                    total_chunks=len(nav_batch._chunks),
+                    checksum=nav_batch.checksum,
+                )
+                # Send the NAV batch
+                nav_result = self._sender.send_batch(nav_batch)
+                nav_success = 1 if nav_result.get("status") == "acked" else 0
+                logger.info("NAV batch sent: %d acked / %d total",
+                    nav_success, len(nav_batch._chunks))
+            else:
+                logger.info("No NAV snapshots to process")
+        else:
+            logger.info("No fund symbols available for NAV collection")
 
         return {
             "sent": 1 if result.get("status") == "acked" else 0,

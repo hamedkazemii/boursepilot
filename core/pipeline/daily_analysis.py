@@ -69,6 +69,21 @@ class DailyAnalysisPipeline:
         source = "live"
         funds: list[SymbolQuote] = []
 
+        # CNX: Use canonical DB universe if available; skip BRS discovery.
+        # This prevents fallback to 30-demo when External server has no BRS access
+        # but the canonical synchronized DB is healthy.
+        try:
+            from services.discovery.universe_store import get_universe_store
+            store = get_universe_store()
+            canonical_funds = store.load_universe(active_only=True)
+            if canonical_funds:
+                # Canonical DB is healthy: use existing funds
+                funds = canonical_funds
+                source = "db_synced"
+            # else: DB empty → fall through to normal discovery
+        except Exception as exc:
+            logger.debug("Canonical DB health check failed: %s", exc)
+        
         # 1) load quotes
         try:
             if self.provider is None:

@@ -61,8 +61,15 @@ class ScoreEngine:
         rec, rec_label = self._recommend(final)
         summary = self._summary_reasons(usable, final, rec_label)
 
-        # Use last_price (live) as primary, fallback to close_price
-        price = quote.last_price if quote.last_price is not None else quote.close_price
+        # Use latest_snapshot.last_price as primary for current market state
+        # Fallback to quote.last_price if no snapshot available
+        if hasattr(self, 'latest_snapshot') and self.latest_snapshot:
+            price = self.latest_snapshot.last_price if self.latest_snapshot.last_price is not None else None
+        else:
+            price = quote.last_price if quote.last_price is not None else quote.close_price
+            # If still no price, mark as legacy
+            if price is None:
+                price = quote.close_price
         premium = compute_premium_pct(price, nav.redeem_nav if nav else None)
 
         return FundAssessment(

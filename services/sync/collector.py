@@ -170,6 +170,122 @@ class FundCollector:
         self._store_snapshot(snapshot)
         return snapshot
 
+
+    # ---------------------------------------------------
+    # NAV HYBRID: SELECTIVE FETCH
+    # ---------------------------------------------------
+
+    def collect_nav_subset(self, symbols: list, max_funds: int = 50) -> list[FundSnapshot]:
+        """Fetch NAV for a selective subset of funds.
+
+        Targets top funds by volume/liquidity from existing history data,
+        ensuring we never exceed BRS quota limits.
+
+        Args:
+            symbols: list of all fund symbols
+            max_funds: maximum number of NAV requests per cycle (default 50)
+
+        Returns:
+            List of FundSnapshot objects with NAV data
+
+        Side Effects:
+            - Calls BrsProvider.get_nav() for selected symbols
+            - Appends FundSnapshot objects to the normal sync payload path
+    """
+        from typing import List
+        from core.database.connection import get_database
+        from services.providers.brs_provider import BrsProvider
+
+        # Select subset: prefer highest volume from existing history (NAV-independent)
+        db = get_database()
+        c = db.cursor()
+
+        # Build per-fund volume ranking from existing history
+        selected: List[str] = []
+        seen: set = set()
+
+        if symbols:
+            # Query volume from history - map fund_id to symbol
+            placeholders = ','.join(['?'] * len(symbols))
+            c.execute(f"SELECT id, symbol FROM funds WHERE symbol IN ({placeholders})", symbols)
+            fund_id_to_sym = {row[0]: row[1] for row in c.fetchall()}
+
+            # Get volume ranking from history
+            all_placeholders = ','.join(['?'] * len(symbols))
+            c.execute(f"SELECT h.fund_id, SUM(h.volume) as total_volume FROM history h WHERE h.fund_id IN ({all_placeholders}) GROUP BY h.fund_id ORDER BY total_volume DESC LIMIT ?", list(symbols) + [max_funds])
+
+            for row in c.fetchall():
+                fund_id = row[0]
+                if len(selected) >= max_funds:
+                    break
+                sym = fund_id_to_sym.get(fund_id)
+                if sym and sym not in seen:
+                    seen.add(sym)
+                    selected.append(sym)
+
+        # Fetch NAV for selected subset and construct FundSnapshots
+        provider = BrsProvider()
+        snapshots: list[FundSnapshot] = []
+
+        for symbol in selected:
+            try:
+                nav_data = provider.get_nav(symbol)
+                if nav_data and nav_data.get('issue_nav') is not None:
+                    # Get quote data for the snapshot using provider
+                    quote = provider.get_symbol(symbol)
+
+                    # Build FundSnapshot following existing _build_snapshot pattern
+                    nav_issue = nav_data.get('issue_nav')
+                    nav_redeem = nav_data.get('redeem_nav')
+                    nav_date = nav_data.get('nav_date')
+
+                    # Extract order book summary (top-of-book only)
+                    best_bid = None
+                    best_ask = None
+                    bid_volume = None
+                    ask_volume = None
+
+                    if hasattr(quote, 'orderbook') and quote.orderbook:
+                        if quote.orderbook.bids:
+                            best_bid = quote.orderbook.bids[0].price
+                            bid_volume = quote.orderbook.bids[0].quantity
+                        if quote.orderbook.asks:
+                            best_ask = quote.orderbook.asks[0].price
+                            ask_volume = quote.orderbook.asks[0].quantity
+
+                    # Build the snapshot with NAV fields populated
+                    snapshot = FundSnapshot(
+                        symbol=symbol,
+                        name=nav_data.get('name') or getattr(quote, 'name', None) if quote else None,
+                        ins_code=nav_data.get('ins_code') or getattr(quote, 'ins_code', None) if quote else None,
+                        isin=getattr(quote, 'isin', None) if quote else None,
+                        sector=getattr(quote, 'sector', None) if quote else None,
+                        fund_type=getattr(quote, 'fund_type', None) if quote else None,
+                        # Market data fields
+                        last_price=nav_data.get('last_price') or getattr(quote, 'last_price', None) if quote else None,
+                        close_price=nav_data.get('close_price') or getattr(quote, 'close_price', None) if quote else None,
+                        yesterday_price=nav_data.get('yesterday_price') or getattr(quote, 'yesterday_price', None) if quote else None,
+                        change_last_pct=nav_data.get('change_last_pct') or getattr(quote, 'change_last_pct', None) if quote else None,
+                        # NAV-specific fields (this is the key addition)
+                        nav_issue=nav_issue,
+                        nav_redeem=nav_redeem,
+                        nav_date=nav_date,
+                        # Order book fields (NAV-only)
+                        best_bid=best_bid,
+                        best_ask=best_ask,
+                        bid_volume=bid_volume,
+                        ask_volume=ask_volume,
+                        # Metadata
+                        source='brs',
+                        captured_at=datetime.now(timezone.utc).isoformat(),
+                    )
+                    snapshots.append(snapshot)
+            except Exception as exc:
+                logger.warning(f"NAV fetch failed for {symbol}: {exc}")
+                continue
+
+        return snapshots
+
     # ------------------------------------------------------------------
     # Snapshot building
     # ------------------------------------------------------------------

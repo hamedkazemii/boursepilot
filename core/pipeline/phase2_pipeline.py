@@ -29,7 +29,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Optional
 
@@ -37,6 +37,9 @@ from typing import Any, Optional
 from core.pipeline.data_quality import DataQualityGate, DataQualityReport
 from core.pipeline.market_regime import MarketRegimeEngine, MarketRegimeResult, MarketRegime
 from core.pipeline.fund_identity import FundIdentityManager, FundIdentity
+from core.snapshot.resolver import LatestSnapshotResolver
+from core.snapshot.resolver import LatestSnapshotResolver
+from core.snapshot.resolver import LatestSnapshotResolver
 from core.pipeline.microstructure import TabloKhaniEngine, TabloKhaniReport
 
 # Phase 2 imports
@@ -75,6 +78,7 @@ class Phase2AnalysisResult:
     
     # Aggregated
     overall_confidence: float = 0.0
+    data_completeness_pct: float = 0.0  # 0-100: fraction of expected Phase2 stages that succeeded
     available_phase2_stages: list[str] = field(default_factory=list)
     missing_phase2_stages: list[str] = field(default_factory=list)
     methodology_version: str = "v1"
@@ -98,6 +102,7 @@ class Phase2Pipeline:
         # Phase 1 engines
         self.provider = provider
         self.repository = repository
+        self.latest_snapshot_resolver = LatestSnapshotResolver(self.repository.db._connect()) if self.repository else None
         self.data_quality_gate = data_quality_gate or DataQualityGate(
             provider=provider, repository=repository
         )
@@ -159,18 +164,35 @@ class Phase2Pipeline:
         if not fund_identity:
             fund_identity = self.fund_identity_manager.identify(symbol)
         
+        # Get latest valid market snapshot
+        fund_id = self.repository.get_fund_id(fund_identity.symbol) if self.repository and fund_identity else None
+        latest_snapshot = self.latest_snapshot_resolver.get_latest_snapshot(fund_id) if fund_id else None
+
+        # Compute freshness
+        analysis_time = datetime.now(timezone.utc)
+        if latest_snapshot:
+            freshness_data = self.latest_snapshot_resolver.compute_freshness(latest_snapshot, analysis_time)
+        else:
+            freshness_data = {
+                'freshness': 'MISSING',
+                'age_minutes': None,
+                'observation_time_semantics': 'unknown',
+                'snapshot_time_semantics': 'unknown'
+            }
+
         # Run Phase 2 engines
-        technical_result = None
         nav_result = None
         fundamental_result = None
-        
+        technical_result = None
+
         available_stages = []
         missing_stages = []
         
         # Technical Engine
         try:
             technical_result = self.technical_engine.analyze(
-                symbol, fund_identity, request_id=phase1_result.request_id
+                symbol, fund_identity, latest_snapshot=latest_snapshot,
+                freshness_data=freshness_data, request_id=phase1_result.request_id
             )
             available_stages.append("Technical")
         except Exception as e:
@@ -180,7 +202,8 @@ class Phase2Pipeline:
         # NAV Engine
         try:
             nav_result = self.nav_engine.analyze(
-                symbol, fund_identity, request_id=phase1_result.request_id
+                symbol, fund_identity,
+                request_id=phase1_result.request_id
             )
             available_stages.append("NAV")
         except Exception as e:
@@ -190,7 +213,8 @@ class Phase2Pipeline:
         # Fundamental Engine
         try:
             fundamental_result = self.fundamental_engine.analyze(
-                symbol, fund_identity, request_id=phase1_result.request_id
+                symbol, fund_identity,
+                request_id=phase1_result.request_id
             )
             available_stages.append("Fundamental")
         except Exception as e:
@@ -198,15 +222,23 @@ class Phase2Pipeline:
             missing_stages.append("Fundamental")
         
         # Aggregate overall confidence
-        confidences = [phase1_result.overall_confidence]
-        if technical_result and technical_result.get("overall_confidence", 0) > 0:
-            confidences.append(technical_result["overall_confidence"])
-        if nav_result and nav_result.get("overall_confidence", 0) > 0:
-            confidences.append(nav_result["overall_confidence"])
-        if fundamental_result and fundamental_result.get("overall_confidence", 0) > 0:
-            confidences.append(fundamental_result["overall_confidence"])
-        
-        overall_confidence = sum(confidences) / len(confidences) if confidences else 0.0
+        # HONEST CONFIDENCE RULE (per product contract):
+        # Confidence must reflect ACTUAL available evidence.
+        # Expected Phase 2 stages: Technical, NAV, Fundamental.
+        # Missing stage = 0 contribution (NOT silently ignored).
+        # Overall = mean over [Phase1] + [Technical, NAV, Fundamental] (missing=0).
+        expected_stage_conf = []
+        # Phase 1 base
+        expected_stage_conf.append(phase1_result.overall_confidence if phase1_result.overall_confidence > 0 else 0.0)
+        # Phase 2 stages (0 if missing/unavailable)
+        expected_stage_conf.append(technical_result["overall_confidence"] if (technical_result and technical_result.get("overall_confidence", 0) > 0) else 0.0)
+        expected_stage_conf.append(nav_result["overall_confidence"] if (nav_result and nav_result.get("overall_confidence", 0) > 0) else 0.0)
+        expected_stage_conf.append(fundamental_result["overall_confidence"] if (fundamental_result and fundamental_result.get("overall_confidence", 0) > 0) else 0.0)
+
+        overall_confidence = sum(expected_stage_conf) / len(expected_stage_conf) if expected_stage_conf else 0.0
+
+        # Data completeness flag for Telegram transparency
+        completeness_pct = (len(available_stages) / 3.0) * 100 if available_stages else 0.0
         
         return Phase2AnalysisResult(
             phase1=phase1_result,
@@ -214,6 +246,7 @@ class Phase2Pipeline:
             nav=nav_result,
             fundamental=fundamental_result,
             overall_confidence=overall_confidence,
+            data_completeness_pct=completeness_pct,
             available_phase2_stages=available_stages,
             missing_phase2_stages=missing_stages,
             methodology_version="v1",
@@ -240,82 +273,141 @@ class Phase2Pipeline:
 
 def format_phase2_telegram(result: Phase2AnalysisResult) -> str:
     """
-    فرمت کردن خروجی Phase 1 + 2 برای Telegram.
-    
-    بر اساس brand principles:
-    - No BUY/SELL
-    - هر تصمیم، شایسته آگاهی است
-    - نشان دادن evidence/confidence/trace
-    - صادقانه در مورد missing data
+    Final Canonical Formatter for Sandoghچی Single Fund Analysis.
+    User-facing, Human-readable, No internal leakage.
     """
-    # Start with Phase 1 output
-    lines = format_phase1_telegram(result.phase1).split("\n")
+    symbol = result.phase1.symbol
+    lines = []
     
-    # Remove the footer line
-    footer_idx = None
-    for i, line in enumerate(lines):
-        if "این تحلیل شامل فاز ۱ است" in line:
-            footer_idx = i
-            break
-    
-    if footer_idx:
-        lines = lines[:footer_idx]
-    
-    lines.append("")
-    lines.append("─── فاز ۲: تحلیل تکمیلی ───")
+    # 1. HEADER & BRANDING
+    lines.append(f"🔎 تحلیل صندوق «{symbol}»")
     lines.append("")
     
-    # === Technical ===
+    # 2. MARKET STATUS & LAST UPDATE
+    gen_at = result.phase1.generated_at
+    lines.append("🕐 آخرین بروزرسانی:")
+    lines.append(f"{gen_at.strftime('%Y/%m/%d — %H:%M')}")
+    lines.append("")
+    
+    lines.append("📡 وضعیت بازار:")
+    if result.phase1.data_quality and result.phase1.data_quality.overall_quality.value == "fresh":
+        lines.append("🟢 بازار زنده")
+    else:
+        lines.append("🟡 آخرین داده معتبر")
+    lines.append("━━━━━━━━━━━━━━━━━━━━")
+    lines.append("")
+    
+    # 3. GENERAL IMAGE
+    lines.append("📌 تصویر کلی")
+    fund_identity = result.phase1.fund_identity
+    fund_type = fund_identity.fund_type.value if fund_identity else "نامشخص"
+    type_map = {"gold": "طلا", "stock": "سهامی", "fixed_income": "درآمد ثابت"}
+    fund_type_fa = type_map.get(fund_type, fund_type)
+    
+    summary_parts = [f"این صندوق از نوع {fund_type_fa} است."]
+    
+    if result.phase1.market_regime:
+        regime = result.phase1.market_regime.regime.value
+        if regime == "RISK_ON": summary_parts.append("وضعیت کلی بازار نشان‌دهنده ریسک‌پذیری است.")
+        elif regime == "RISK_OFF": summary_parts.append("احتیاط در بازار دیده می‌شود.")
+        
+    lines.append(" ".join(summary_parts))
+    lines.append("")
+    
+    # 4. PRICE & NAV
+    lines.append("💰 قیمت و NAV")
+    price = "نامشخص"
+    nav = "نامشخص"
+    if result.phase1.data_quality:
+        metrics = result.phase1.data_quality.metrics
+        if "last_price" in metrics and metrics["last_price"].value: price = f"{metrics['last_price'].value:,.0f}"
+        if "nav" in metrics and metrics["nav"].value: nav = f"{metrics['nav'].value:,.0f}"
+        
+    lines.append(f"قیمت فعلی: {price}")
+    lines.append(f"NAV: {nav}")
+    
+    if result.nav and result.nav.get("analyses"):
+        pd_val = "نامشخص"
+        for a in result.nav["analyses"]:
+            if a["name"] == "premium_discount":
+                pd_val = a["value"]
+                break
+        
+        if pd_val == "unavailable":
+            lines.append("فاصله از NAV: [داده هم‌زمان کافی نیست]")
+        else:
+            lines.append(f"فاصله از NAV: {pd_val}")
+            
+    lines.append("")
+    
+    # 5. RECENT BEHAVIOR
     if result.technical:
-        tech = result.technical
-        lines.append("📈 تحلیل تکنیکال")
-        lines.append(f"  • اطمینان: {tech.get('overall_confidence', 0):.0%}")
-        lines.append(f"  • ماژول‌ها: {len(tech.get('modules', {}))}")
+        lines.append("📈 رفتار اخیر")
+        tech_mods = result.technical.get("modules", {})
         
-        for module_name, module_data in tech.get("modules", {}).items():
-            if module_data.get("analyses"):
-                analyses = module_data["analyses"]
-                for analysis in analyses:
-                    lines.append(f"  • {module_name}/{analysis['name']}: {analysis['value']} ({analysis['confidence']:.0%})")
-        lines.append("")
-    
-    # === NAV ===
-    if result.nav:
-        nav = result.nav
-        lines.append("💰 NAV / پرمیوم-دیسکانت")
-        lines.append(f"  • اطمینان: {nav.get('overall_confidence', 0):.0%}")
-        lines.append(f"  • Alignment: {nav.get('alignment_status', 'unknown')}")
-        if nav.get("alignment_seconds") is not None:
-            lines.append(f"  • تفاضل زمانی: {nav['alignment_seconds']}s")
+        trend_val = "نامشخص"
+        if "trend" in tech_mods:
+            trend_val = tech_mods["trend"].get("analyses", [{}])[0].get("value", "نامشخص")
+            
+        if trend_val == "up": lines.append("• روند قیمت: صعودی")
+        elif trend_val == "down": lines.append("• روند قیمت: نزولی")
+        else: lines.append("• روند قیمت: نشانه قطعی دیده نمی‌شود")
         
-        for analysis in nav.get("analyses", []):
-            lines.append(f"  • {analysis['name']}: {analysis['value']} ({analysis['confidence']:.0%})")
-        lines.append("")
-    
-    # === Fundamental ===
-    if result.fundamental:
-        fund = result.fundamental
-        lines.append("📊 تحلیل بنیادی")
-        lines.append(f"  • اطمینان: {fund.get('overall_confidence', 0):.0%}")
-        lines.append(f"  • ماژول‌ها: {list(fund.get('modules', {}).keys())}")
+        rsi_state = "نامشخص"
+        if "momentum" in tech_mods:
+            for a in tech_mods["momentum"].get("analyses", []):
+                if a["name"] == "rsi_state":
+                    rsi_state = a["value"]
+                    break
         
-        for module_name, module_data in fund.get("modules", {}).items():
-            for analysis in module_data.get("analyses", []):
-                lines.append(f"  • {module_name}/{analysis['name']}: {analysis['value']} ({analysis['confidence']:.0%})")
+        if rsi_state == "oversold": lines.append("• شتاب: در محدوده اشباع فروش")
+        elif rsi_state == "overbought": lines.append("• شتاب: در محدوده اشباع خرید")
+        else: lines.append("• شتاب: متعادل")
+        
         lines.append("")
+        
+    # 6. STRENGTHS & RISKS
+    lines.append("🟢 نقاط قوت")
+    s_count = 0
+    if result.phase1.tablo_khani:
+        tk = result.phase1.tablo_khani
+        if tk.orderbook_pressure.value in ["strong_buy", "buy"]:
+            lines.append("• تقاضای مناسب در تابلوی معاملات")
+            s_count += 1
+        if tk.money_flow_pressure.value == "real_buy_dominant":
+            lines.append("• ورود پول حقیقی")
+            s_count += 1
     
-    # Phase 2 summary
-    lines.append("─── جمع‌بندی فاز ۲ ───")
-    lines.append(f"مراحل موجود: {', '.join(result.available_phase2_stages) if result.available_phase2_stages else 'هیچ‌کدام'}")
-    if result.missing_phase2_stages:
-        lines.append(f"مراحل ناموجود: {', '.join(result.missing_phase2_stages)}")
-    lines.append(f"اطمینان کلی فاز ۱+۲: {result.overall_confidence:.0%}")
+    if s_count == 0:
+        lines.append("• مورد خاصی در داده‌های فعلی مشاهده نشد.")
     lines.append("")
-    lines.append("──────────────────────────────")
-    lines.append("این تحلیل شامل فاز ۱ و ۲ است:")
-    lines.append("Phase 1: DataQualityGate + MarketRegime + FundIdentity + TabloKhani")
-    lines.append("Phase 2: Technical + NAV + Fundamental")
-    lines.append("فازهای بعدی (KODAL / Risk / Relative / Decision Support) متعاقباً اضافه می‌شوند.")
+    
+    lines.append("🔴 ریسک‌ها")
+    r_count = 0
+    if result.nav and result.nav.get("alignment_status") == "misaligned":
+        lines.append("• فاصله زمانی بین قیمت و NAV")
+        r_count += 1
+    if result.phase1.status.value == "partial":
+        lines.append("• برخی داده‌های تحلیل ناقص است.")
+        r_count += 1
+        
+    if r_count == 0:
+        lines.append("• ریسک فوری در داده‌های تابلو دیده نمی‌شود.")
+    lines.append("")
+    
+    # 7. SUMMARY
+    lines.append("🧭 جمع‌بندی صندوقچی")
+    if result.overall_confidence < 0.6:
+        lines.append("با توجه به محدودیت داده‌ها، ارزیابی قطعی میسر نیست و احتیاط پیشنهاد می‌شود.")
+    else:
+        lines.append("وضعیت کلی صندوق متعادل ارزیابی می‌شود.")
+    lines.append("")
+    
+    lines.append("⚠️ این تحلیل توصیه خرید یا فروش نیست.")
+    lines.append("هدف، کمک به تصمیم آگاهانه است.")
+    lines.append("")
+    lines.append("«هر تصمیم، شایسته آگاهی است.»")
+    lines.append("━━━━━━━━━━━━━━━━━━━━")
     
     return "\n".join(lines)
 
