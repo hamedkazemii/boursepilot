@@ -1,10 +1,10 @@
-"""تعریف جداول SQLite — History + Users + AI memory."""
+"""تعریف جداول SQLite — History + Users + AI memory + Sync V2."""
 
 from __future__ import annotations
 
 import sqlite3
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -90,6 +90,7 @@ CREATE TABLE IF NOT EXISTS history (
 
 CREATE INDEX IF NOT EXISTS idx_history_date ON history(trade_date);
 CREATE INDEX IF NOT EXISTS idx_history_fund_date ON history(fund_id, trade_date);
+CREATE INDEX IF NOT EXISTS idx_history_fund_date_time ON history(fund_id, trade_date, snapshot_time);
 
 CREATE TABLE IF NOT EXISTS nav_history (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -101,6 +102,7 @@ CREATE TABLE IF NOT EXISTS nav_history (
     market_price REAL,
     source TEXT NOT NULL DEFAULT 'brs',
     created_at TEXT NOT NULL,
+    snapshot_time TEXT DEFAULT NULL,
     UNIQUE(fund_id, nav_date),
     FOREIGN KEY(fund_id) REFERENCES funds(id) ON DELETE CASCADE
 );
@@ -257,6 +259,11 @@ CREATE TABLE IF NOT EXISTS portfolio_items (
     symbol TEXT NOT NULL,
     quantity REAL NOT NULL DEFAULT 0,
     avg_cost REAL,
+    execution_price REAL,
+    gross_trade_value REAL,
+    fee REAL,
+    net_cash_flow REAL,
+    cost_basis REAL,
     weight_target REAL,
     notes TEXT,
     created_at TEXT NOT NULL,
@@ -327,6 +334,40 @@ CREATE TABLE IF NOT EXISTS kodal_disclosures (
 CREATE INDEX IF NOT EXISTS idx_kodal_symbol ON kodal_disclosures(symbol);
 CREATE INDEX IF NOT EXISTS idx_kodal_published ON kodal_disclosures(published_at);
 CREATE INDEX IF NOT EXISTS idx_kodal_importance ON kodal_disclosures(importance);
+
+-- Sync V2 — Receiver persistence tables
+CREATE TABLE IF NOT EXISTS received_batches (
+    batch_id TEXT PRIMARY KEY,
+    source_server TEXT NOT NULL,
+    total_chunks INTEGER NOT NULL,
+    chunk_size INTEGER NOT NULL,
+    record_count INTEGER NOT NULL,
+    checksum TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    completed_at TEXT,
+    error_message TEXT,
+    processed INTEGER NOT NULL DEFAULT 0,
+    received_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_received_batches_status ON received_batches(status);
+CREATE INDEX IF NOT EXISTS idx_received_batches_received_at ON received_batches(received_at);
+
+CREATE TABLE IF NOT EXISTS received_chunks (
+    batch_id TEXT NOT NULL,
+    chunk_number INTEGER NOT NULL,
+    payload BLOB NOT NULL,
+    checksum TEXT NOT NULL,
+    saved_at TEXT NOT NULL,
+    PRIMARY KEY (batch_id, chunk_number)
+);
+
+CREATE TABLE IF NOT EXISTS sync_acknowledgements (
+    batch_id TEXT PRIMARY KEY,
+    acknowledged_at TEXT NOT NULL,
+    acknowledged_by TEXT NOT NULL,
+    ack_payload TEXT
+);
 """
 
 
@@ -356,6 +397,34 @@ def apply_schema(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE fund_indicators ADD COLUMN momentum_score REAL")
     except sqlite3.OperationalError:
         pass  # Column already exists
+
+    # Migration v7.1: add history columns required by current repository/mapper
+    # (open_price, high_price, low_price, close_price, yesterday_price, volume,
+    #  value, trade_count, change_pct, bid_qty, ask_qty, buy_real_volume,
+    #  sell_real_volume, buy_legal_volume, sell_legal_volume, snapshot_time_semantics)
+    _HISTORY_MISSING_COLUMNS = [
+        ("open_price", "REAL"),
+        ("high_price", "REAL"),
+        ("low_price", "REAL"),
+        ("close_price", "REAL"),
+        ("yesterday_price", "REAL"),
+        ("volume", "REAL"),
+        ("value", "REAL"),
+        ("trade_count", "INTEGER"),
+        ("change_pct", "REAL"),
+        ("bid_qty", "REAL"),
+        ("ask_qty", "REAL"),
+        ("buy_real_volume", "REAL"),
+        ("sell_real_volume", "REAL"),
+        ("buy_legal_volume", "REAL"),
+        ("sell_legal_volume", "REAL"),
+        ("snapshot_time_semantics", "TEXT"),
+    ]
+    for col, col_type in _HISTORY_MISSING_COLUMNS:
+        try:
+            conn.execute(f"ALTER TABLE history ADD COLUMN {col} {col_type}")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
 
     # Migration: add change_last_pct column to history table
     try:
@@ -396,3 +465,17 @@ def apply_schema(conn: sqlite3.Connection) -> None:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_kodal_published ON kodal_disclosures(published_at)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_kodal_importance ON kodal_disclosures(importance)")
         print("kodal_disclosures recreated without FK")
+
+    # Migration v7.2: add transaction/cost-basis columns to portfolio_items
+    _PORTFOLIO_NEW_COLUMNS = [
+        ("execution_price", "REAL"),
+        ("gross_trade_value", "REAL"),
+        ("fee", "REAL"),
+        ("net_cash_flow", "REAL"),
+        ("cost_basis", "REAL"),
+    ]
+    for col, col_type in _PORTFOLIO_NEW_COLUMNS:
+        try:
+            conn.execute(f"ALTER TABLE portfolio_items ADD COLUMN {col} {col_type}")
+        except sqlite3.OperationalError:
+            pass  # Column already exists

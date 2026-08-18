@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from jdatetime import date as jdate
 from enum import Enum
 from typing import Any, Optional
 
@@ -202,8 +203,12 @@ class NAVEngine:
                 if has_nav:
                     # NavData has date and time fields
                     if nav_data.date and nav_data.time:
+                        gd = jdate(
+                            int(nav_data.date.split("-")[0]),
+                            int(nav_data.date.split("-")[1]),
+                            int(nav_data.date.split("-")[2])).togregorian()
                         result.nav_timestamp = datetime.strptime(
-                            f"{nav_data.date} {nav_data.time}", "%Y-%m-%d %H:%M:%S"
+                            f"{gd.year}-{gd.month:02d}-{gd.day:02d} {nav_data.time}", "%Y-%m-%d %H:%M:%S"
                         )
                     else:
                         result.nav_timestamp = datetime.now()
