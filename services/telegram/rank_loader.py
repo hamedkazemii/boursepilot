@@ -51,13 +51,19 @@ def load_rankings(
     except Exception as exc:  # noqa: BLE001
         logger.warning("analysis pipeline failed: %s", exc)
 
-    if allow_demo:
+    # FIX: Priority Canonical DB Check
+    if store and hasattr(store, 'get_universe') and store.get_universe():
+        # Use canonical store data pipeline
+        pipe = DailyAnalysisPipeline(provider=None, store=store, allow_offline_seed=False)
+        result = pipe.run(limit=limit or 100)
+        ranked = result['ranked']
+        source = 'local_db'
+    elif allow_demo:
         from core.pipeline.daily_analysis import DailyAnalysisPipeline as P
-
         pipe = P(provider=None, allow_offline_seed=True)
-        pipe.provider = None
         result = pipe.run(limit=limit or 30)
-        ranked = result["ranked"]
+        ranked = result['ranked']
+        source = 'offline'
         _CACHE.update({"ranked": ranked, "source": "demo", "at": now, "payload": result["payload"]})
         return ranked, "demo"
 
