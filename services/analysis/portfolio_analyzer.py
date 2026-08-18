@@ -133,11 +133,18 @@ class PortfolioAnalyzer:
                 logger.warning("Failed to get quote for %s: %s", sym, e)
 
         # LEVEL 1 — تحلیل هر نگهدارنده
+        from core.universe.valuation_resolver import ValuationPriceResolver
+        from core.market.hours import current_session
+        
+        resolver = ValuationPriceResolver(quotes, db_conn)
+        is_open = current_session().is_open()
+        
+        # V2 Contract: last_price when open, close_price when closed
         for item in items:
             sym = item["symbol"]
-            quote = quotes.get(sym)
-            current_price = quote.last_price if quote else None
-
+            p = resolver.resolve_portfolio_price(sym, market_is_open=is_open)
+            current_price = p.price or 0
+            
             if not current_price:
                 logger.warning("No price for %s, skipping", sym)
                 continue

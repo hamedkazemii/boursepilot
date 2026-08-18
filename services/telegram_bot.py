@@ -842,7 +842,18 @@ class SandoghchiBot:
     def _send_my_portfolio(self, chat_id: str, uid: str) -> None:
         """نمای کلی سبد کاربر (Overview)."""
         ranked = self._get_ranked()
-        prices = {a.symbol: float(a.close_price or a.last_price or 0) for a in ranked if a.last_price or a.close_price}
+        
+        # Canonical Contract V2: Resolve prices using ValuationPriceResolver
+        from core.universe.valuation_resolver import ValuationPriceResolver
+        from core.market.hours import current_session
+        resolver = ValuationPriceResolver(self.provider, self.store.db_conn)
+        is_open = current_session().is_open()
+        
+        prices = {}
+        for a in ranked:
+            p = resolver.resolve_portfolio_price(a.symbol, market_is_open=is_open)
+            prices[a.symbol] = p.price or 0
+        
         pf = self.portfolio.get_portfolio(uid)
         u = self.portfolio.ensure_user(uid)
         text = format_portfolio_brand(pf["items"], prices, u, ranked)
