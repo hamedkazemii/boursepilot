@@ -262,10 +262,25 @@ class SandoghchiBot:
                 self._reply(chat_id, "این مقدار رو نتونستم تشخیص بدم. تعداد واحد رو بفرست:", reply_markup=cancel_only_keyboard())
                 return
             w["qty"] = qty
+            w["step"] = "fee"
+            self._reply(
+                chat_id,
+                f"تعداد {qty:g} واحد ثبت شد.\n\nکارمزد معامله چقدر بود؟ (به ریال)\nاگه نمی‌دونی، «0» بفرست یا «رد» بزن.",
+                reply_markup=cancel_only_keyboard(),
+            )
+        elif step == "fee":
+            if text.strip() in ("رد", "skip", "نمی‌دونم"):
+                w["fee"] = None
+            else:
+                fee = _parse_number(text)
+                if fee is None or fee < 0:
+                    self._reply(chat_id, "عدد کارمزد رو بفرست (یا «رد» بزن):", reply_markup=cancel_only_keyboard())
+                    return
+                w["fee"] = fee
             w["step"] = "date"
             self._reply(
                 chat_id,
-                f"تعداد {qty:g} واحد ثبت شد.\n\nچه تاریخی خریدیش؟\nمثلاً ۱۴۰۵/۰۵/۱۹",
+                "چه تاریخی خریدیش؟\nمثلاً ۱۴۰۵/۰۵/۱۹",
                 reply_markup=cancel_only_keyboard(),
             )
         elif step == "date":
@@ -331,13 +346,21 @@ class SandoghchiBot:
                 reply_markup=portfolio_actions_keyboard(),
             )
         else:
-            self.portfolio.upsert_holding(uid, sym, quantity=qty, avg_cost=price)
+            self.portfolio.upsert_holding(
+                uid, sym,
+                quantity=qty,
+                execution_price=price,
+                gross_trade_value=qty * price,
+                fee=w.get("fee"),
+            )
+            fee_line = f"💸 کارمزد: {w['fee']:,.0f} ریال\n" if w.get("fee") is not None else ""
             self._reply(
                 target,
                 f"✅ {sym} به سبد اضافه شد.\n"
-                f"🔢 {qty:g} واحد @ {price:,.0f} ریال\n"
-                f"📅 {w.get('date', '')}\n"
-                f"💰 ارزش: {qty * price:,.0f} ریال",
+                f"🔢 {qty:g} واحد @ {price:,.0f} ریال (قیمت اجرا)\n"
+                f"💰 ارزش معامله: {qty * price:,.0f} ریال\n"
+                f"{fee_line}"
+                f"📅 {w.get('date', '')}",
                 reply_markup=portfolio_actions_keyboard(),
             )
 
@@ -819,7 +842,7 @@ class SandoghchiBot:
     def _send_my_portfolio(self, chat_id: str, uid: str) -> None:
         """نمای کلی سبد کاربر (Overview)."""
         ranked = self._get_ranked()
-        prices = {a.symbol: float(a.last_price or a.close_price or 0) for a in ranked if a.last_price or a.close_price}
+        prices = {a.symbol: float(a.close_price or a.last_price or 0) for a in ranked if a.last_price or a.close_price}
         pf = self.portfolio.get_portfolio(uid)
         u = self.portfolio.ensure_user(uid)
         text = format_portfolio_brand(pf["items"], prices, u, ranked)
@@ -1006,7 +1029,7 @@ class SandoghchiBot:
         u = self.portfolio.ensure_user(uid)
         pf = self.portfolio.get_portfolio(uid)
         ranked = self._get_ranked()
-        prices = {a.symbol: float(a.last_price or a.close_price or 0) for a in ranked if a.last_price or a.close_price}
+        prices = {a.symbol: float(a.close_price or a.last_price or 0) for a in ranked if a.last_price or a.close_price}
         join_days = 1  # placeholder
         text = format_profile_brand(u, pf["items"], prices, join_days)
         self._reply(chat_id, text, reply_markup=profile_keyboard())
